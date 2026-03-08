@@ -1,9 +1,6 @@
 /*
  * קובץ: pre_assembler.c
- * מטרת הקובץ: מימוש האלגוריתם לפרישת מאקרואים.
- * כיצד מושגת המטרה: קריאת קובץ המקור, בניית טבלת מאקרו, והחלפת קריאות במלל.
  */
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -38,8 +35,7 @@ boolean pre_assemble(FILE *source_file, const char *base_file_name, AssemblerCon
 
     while (fgets(line, sizeof(line), source_file) != NULL) {
         if (strchr(line, '\n') == NULL && !feof(source_file)) {
-            fprintf(stderr, "Error at line %d: Line exceeds maximum length of %d characters.\n", 
-                    context->line_number, MAX_LINE_LENGTH);
+            fprintf(stderr, "Error at line %d: Line exceeds max length.\n", context->line_number);
             context->error_found = TRUE;
             while ((c = fgetc(source_file)) != '\n' && c != EOF);
             context->line_number++;
@@ -89,7 +85,7 @@ boolean pre_assemble(FILE *source_file, const char *base_file_name, AssemblerCon
                 } else {
                     skip_whitespaces(&line_ptr);
                     if (*line_ptr != '\0' && *line_ptr != '\n') {
-                        fprintf(stderr, "Error at line %d: Extraneous text after macro name.\n", context->line_number);
+                        fprintf(stderr, "Error at line %d: Extraneous text.\n", context->line_number);
                         context->error_found = TRUE;
                     }
                     current_macro = add_macro(&macro_head, macro_name);
