@@ -6,6 +6,7 @@
 #include "globals.h"
 #include "utils.h"
 #include "pre_assembler.h"
+#include "first_pass.h"
 
 int main(int argc, char *argv[]) {
     int i;
