@@ -39,10 +39,10 @@ int main(int argc, char *argv[]) {
         printf("Processing macros for file: %s\n", file_name);
         
         if (pre_assemble(source_file, argv[i], &current_context)) {
+            char am_file_name[256];
             printf("Success! Generated %s.am\n", argv[i]);
             
             /* Prepare the filename with the .am extension for the first pass */
-            char am_file_name[256];
             sprintf(am_file_name, "%s.am", argv[i]);
 
             /* Execute the first pass */
