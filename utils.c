@@ -44,12 +44,11 @@ char *create_file_name(const char *original_name, const char *extension) {
 }
 
 /* --- פונקציות ניהול טבלת הסמלים (חדש) --- */
-
 boolean add_symbol(symbol_ptr *head, const char *name, int value, int is_code, int is_data, int is_extern) {
     symbol_ptr new_node;
     symbol_ptr current = *head;
 
-    /* בדיקה אם הסמל כבר קיים בטבלה (מונע כפילויות) */
+    /* בדיקה אם הסמל כבר קיים בטבלה (למניעת כפילויות) */
     while (current != NULL) {
         if (strcmp(current->name, name) == 0) {
             return FALSE;
@@ -57,22 +56,30 @@ boolean add_symbol(symbol_ptr *head, const char *name, int value, int is_code, i
         current = current->next;
     }
 
-    /* שימוש בפונקציה שלך להקצאה בטוחה! */
+    /* יצירת הצומת החדש */
     new_node = (symbol_ptr)safe_malloc(sizeof(symbol_node));
-
     strcpy(new_node->name, name);
     new_node->value = value;
     new_node->is_code = is_code;
     new_node->is_data = is_data;
     new_node->is_extern = is_extern;
-    new_node->is_entry = FALSE; /* מתעדכן במעבר השני אם צריך */
+    new_node->is_entry = FALSE;
+    new_node->next = NULL; /* הוא הולך להיות האחרון ברשימה */
 
-    /* הוספת הסמל לראש הרשימה */
-    new_node->next = *head;
-    *head = new_node;
+    /* הוספה לזנב הרשימה (כדי לשמור על הסדר המקורי) */
+    if (*head == NULL) {
+        *head = new_node; /* אם הרשימה ריקה, הוא הראשון */
+    } else {
+        current = *head;
+        while (current->next != NULL) {
+            current = current->next; /* מתקדמים עד הסוף */
+        }
+        current->next = new_node; /* מחברים אותו לזנב */
+    }
 
     return TRUE;
 }
+
 
 symbol_ptr get_symbol(symbol_ptr head, const char *name) {
     symbol_ptr current = head;
