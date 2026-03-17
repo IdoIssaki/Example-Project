@@ -6,42 +6,33 @@
 #include "utils.h"
 #include "tables.h"
 
-/* חיפוש סמל בטבלה */
-static symbol_ptr get_symbol(symbol_ptr head, const char *name) {
-    symbol_ptr current = head;
-    while (current) {
-        if (strcmp(current->name, name) == 0) return current;
-        current = current->next;
-    }
-    return NULL;
-}
-
-/* הוספת שימוש חיצוני לרשימה */
-static void add_ext_node(ext_ptr *head, const char *name, int address) {
+static void add_ext(ext_ptr *head, const char *name, int address) {
     ext_ptr new_node = (ext_ptr)safe_malloc(sizeof(ext_node));
     strcpy(new_node->name, name);
     new_node->address = address;
-    new_node->next = *head;
-    *head = new_node;
+    new_node->next = NULL;
+
+    if (*head == NULL) {
+        *head = new_node;
+    } else {
+        ext_ptr temp = *head;
+        while (temp->next != NULL) temp = temp->next;
+        temp->next = new_node;
+    }
 }
 
 boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_head) {
     char line[MAX_LINE_LENGTH + 2];
-    char first_word[MAX_LINE_LENGTH];
+    char first_word[MAX_LINE_LENGTH], label[MAX_LABEL_LENGTH];
     char *line_ptr;
 
     context->ic = INITIAL_IC;
     context->line_number = 1;
 
     while (fgets(line, sizeof(line), am_file)) {
-        /* הצהרת כל המשתנים בתחילת הבלוק לפי תקן C90 */
-        char label[MAX_LABEL_LENGTH];
-        symbol_ptr sym;
         const command_entry *cmd;
-        char src[MAX_LINE_LENGTH];
-        char dst[MAX_LINE_LENGTH];
-        int src_m, dst_m, L, offset;
-        char *target;
+        char src[MAX_LINE_LENGTH], dst[MAX_LINE_LENGTH];
+        int src_m = -1, dst_m = -1, L = 1, offset, k;
 
         line_ptr = line;
 
@@ -52,101 +43,104 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
 
         extract_word(&line_ptr, first_word);
 
-        /* דילוג על תווית אם קיימת */
         if (is_label_definition(first_word)) {
             extract_word(&line_ptr, first_word);
         }
 
-        /* במעבר שני מתעלמים מהנחיות נתונים ו-extern */
-        if (strcmp(first_word, ".data") == 0 ||
-            strcmp(first_word, ".string") == 0 ||
-            strcmp(first_word, ".extern") == 0) {
+        if (strcmp(first_word, ".data") == 0 || strcmp(first_word, ".string") == 0 || strcmp(first_word, ".extern") == 0) {
             context->line_number++;
             continue;
         }
-
-        if (strcmp(first_word, ".entry") == 0) {
+        else if (strcmp(first_word, ".entry") == 0) {
+            symbol_ptr sym;
             extract_word(&line_ptr, label);
             sym = get_symbol(context->symbol_head, label);
-            if (sym) {
-                sym->is_entry = TRUE;
-            } else {
-                fprintf(stderr, "Error line %d: Entry label '%s' not defined.\n", context->line_number, label);
+            if (sym) sym->is_entry = TRUE;
+            else {
+                fprintf(stderr, "Error line %d: Undefined entry symbol '%s'\n", context->line_number, label);
                 context->error_found = TRUE;
             }
-        } else {
+        }
+        else {
             cmd = get_command(first_word);
             if (cmd) {
                 memset(src, 0, sizeof(src));
                 memset(dst, 0, sizeof(dst));
-                src_m = -1;
-                dst_m = -1;
-                L = 1;
 
-                /* חילוץ האופרנדים כדי לחשב את אורך ההוראה L במדויק */
+                /* אותו פיענוח בדיוק כמו במעבר הראשון */
                 if (cmd->expected_ops == 2) {
-                    extract_word(&line_ptr, src);
+                    k = 0;
                     skip_whitespaces(&line_ptr);
-                    if (*line_ptr == ',') {
-                        line_ptr++;
-                        extract_word(&line_ptr, dst);
+                    while (*line_ptr && *line_ptr != ',' && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
+                        src[k++] = *line_ptr++;
                     }
-                    if (src[0] == '#') src_m = 0;
-                    else if (is_register(src)) src_m = 3;
-                    else if (src[0] == '%') src_m = 2;
-                    else src_m = 1;
-                    L++;
-                } else if (cmd->expected_ops == 1) {
-                    extract_word(&line_ptr, dst);
+                    src[k] = '\0';
+                    skip_whitespaces(&line_ptr);
+                    if (*line_ptr == ',') line_ptr++;
+                    skip_whitespaces(&line_ptr);
+                    k = 0;
+                    while (*line_ptr && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
+                        dst[k++] = *line_ptr++;
+                    }
+                    dst[k] = '\0';
+
+                    src_m = (src[0] == '#') ? 0 : ((strlen(src) == 2 && src[0] == 'r' && src[1] >= '0' && src[1] <= '7') ? 3 : (src[0] == '%' ? 2 : 1));
+                    dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
+                    L = 3;
+                }
+                else if (cmd->expected_ops == 1) {
+                    k = 0;
+                    skip_whitespaces(&line_ptr);
+                    while (*line_ptr && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
+                        dst[k++] = *line_ptr++;
+                    }
+                    dst[k] = '\0';
+
+                    dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
+                    L = 2;
                 }
 
-                if (cmd->expected_ops >= 1) {
-                    if (dst[0] == '#') dst_m = 0;
-                    else if (is_register(dst)) dst_m = 3;
-                    else if (dst[0] == '%') dst_m = 2;
-                    else dst_m = 1;
-                    L++;
-                }
-
-                /* שני רגיסטרים חולקים מילת הרחבה אחת - תואם למעבר הראשון */
-                if (src_m == 3 && dst_m == 3) {
-                    L--;
-                }
-
-                /* השלמת הקידוד עבור אופרנד מקור (אם הוא תווית) */
+                /* השלמת כתובות במעבר השני */
                 if (src_m == 1 || src_m == 2) {
-                    target = (src_m == 2) ? src + 1 : src;
-                    sym = get_symbol(context->symbol_head, target);
+                    char *sym_name = (src_m == 2) ? src + 1 : src;
+                    symbol_ptr sym = get_symbol(context->symbol_head, sym_name);
+
                     if (sym) {
                         if (sym->is_extern) {
-                            context->code_image[context->ic - INITIAL_IC + 1].are = ARE_EXTERNAL;
-                            add_ext_node(ext_list_head, sym->name, context->ic + 1);
+                            context->code_image[context->ic - INITIAL_IC + 1].value = 0;
+                            context->code_image[context->ic - INITIAL_IC + 1].are = 'E';
+                            add_ext(ext_list_head, sym->name, context->ic + 1);
                         } else {
-                            context->code_image[context->ic - INITIAL_IC + 1].value = (src_m == 2) ? (sym->value - context->ic) : sym->value;
-                            context->code_image[context->ic - INITIAL_IC + 1].are = (src_m == 2) ? ARE_ABSOLUTE : ARE_RELOCATABLE;
+                            if (src_m == 2) {
+                                context->code_image[context->ic - INITIAL_IC + 1].value = (sym->value - context->ic) & 0xFFF;
+                                context->code_image[context->ic - INITIAL_IC + 1].are = 'A';
+                            } else {
+                                context->code_image[context->ic - INITIAL_IC + 1].value = sym->value & 0xFFF;
+                                context->code_image[context->ic - INITIAL_IC + 1].are = 'R';
+                            }
                         }
-                    } else {
-                        fprintf(stderr, "Error line %d: Undefined symbol '%s'\n", context->line_number, target);
-                        context->error_found = TRUE;
                     }
                 }
 
-                /* השלמת הקידוד עבור אופרנד יעד (אם הוא תווית) */
                 if (dst_m == 1 || dst_m == 2) {
+                    char *sym_name = (dst_m == 2) ? dst + 1 : dst;
+                    symbol_ptr sym = get_symbol(context->symbol_head, sym_name);
                     offset = (src_m != -1) ? 2 : 1;
-                    target = (dst_m == 2) ? dst + 1 : dst;
-                    sym = get_symbol(context->symbol_head, target);
+
                     if (sym) {
                         if (sym->is_extern) {
-                            context->code_image[context->ic - INITIAL_IC + offset].are = ARE_EXTERNAL;
-                            add_ext_node(ext_list_head, sym->name, context->ic + offset);
+                            context->code_image[context->ic - INITIAL_IC + offset].value = 0;
+                            context->code_image[context->ic - INITIAL_IC + offset].are = 'E';
+                            add_ext(ext_list_head, sym->name, context->ic + offset);
                         } else {
-                            context->code_image[context->ic - INITIAL_IC + offset].value = (dst_m == 2) ? (sym->value - context->ic) : sym->value;
-                            context->code_image[context->ic - INITIAL_IC + offset].are = (dst_m == 2) ? ARE_ABSOLUTE : ARE_RELOCATABLE;
+                            if (dst_m == 2) {
+                                context->code_image[context->ic - INITIAL_IC + offset].value = (sym->value - context->ic) & 0xFFF;
+                                context->code_image[context->ic - INITIAL_IC + offset].are = 'A';
+                            } else {
+                                context->code_image[context->ic - INITIAL_IC + offset].value = sym->value & 0xFFF;
+                                context->code_image[context->ic - INITIAL_IC + offset].are = 'R';
+                            }
                         }
-                    } else {
-                        fprintf(stderr, "Error line %d: Undefined symbol '%s'\n", context->line_number, target);
-                        context->error_found = TRUE;
                     }
                 }
 
@@ -155,5 +149,6 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
         }
         context->line_number++;
     }
+
     return !context->error_found;
 }
