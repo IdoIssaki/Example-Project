@@ -41,9 +41,10 @@ int main(int argc, char *argv[]) {
 
         /* הפעלת שלב הפרישה בלבד */
         if (pre_assemble(source_file, argv[i], &current_context)) {
-            /* 1. קודם כל הכרזת משתנים בתחילת הבלוק */
+            /* 1. קודם כל הכרזת כל המשתנים בתחילת הבלוק! */
             char *am_file_name;
             FILE *am_file;
+            ext_ptr ext_list_head = NULL; /* <-- העלינו את ההכרזה לכאן */
 
             /* 2. רק אז שורות קוד וקריאות לפונקציות */
             printf("Success! Generated %s.am\n", argv[i]);
@@ -60,9 +61,6 @@ int main(int argc, char *argv[]) {
                     /* --- הפעלת המעבר השני --- */
                     /* חובה: החזרת סמן הקובץ להתחלה לפני המעבר השני */
                     rewind(am_file);
-
-                    /* הגדרת ראש הרשימה המקושרת לסמלים חיצוניים */
-                    ext_ptr ext_list_head = NULL;
 
                     printf("Starting second pass...\n");
                     if (second_pass(am_file, &current_context, &ext_list_head)) {
@@ -83,7 +81,7 @@ int main(int argc, char *argv[]) {
                 fprintf(stderr, "Error: Cannot open .am file for passes.\n");
             }
 
-            /* החשוב מכל - שחרור הזיכרון! בדיוק איפה שהוא צריך להיות */
+            /* שחרור הזיכרון */
             free(am_file_name);
 
         } else {
