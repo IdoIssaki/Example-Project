@@ -26,10 +26,16 @@ typedef struct {
     are_type are;       
 } machine_word;
 
+
 typedef struct {
-    char *name;          
-    unsigned int opcode; 
-    unsigned int funct;  
+    const char *name;
+    unsigned int opcode;
+    unsigned int funct;
+    int expected_operands; 
+    
+ 
+    int valid_src[4];  
+    int valid_dest[4]; 
 } command_entry;
 
 typedef struct symbol_node {

@@ -1,149 +1,122 @@
 /*
  * קובץ: first_pass.c
+ * מטרת הקובץ: ביצוע המעבר הראשון על קובץ ה-.am ליצירת טבלת הסמלים
+ * וקידוד ראשוני של תמונת הזיכרון.
  */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "globals.h"
 #include "first_pass.h"
 #include "parser.h"
 #include "utils.h"
 #include "tables.h"
+#include "symbol_table.h" /* טבלת הסמלים שיצרנו בשלבים הקודמים */
 
-/* ================== פונקציות עזר פנימיות (Private) ================== */
-
-static void report_error(AssemblerContext *ctx, const char *message) {
-    fprintf(stderr, "Error in line %d: %s\n", ctx->line_number, message);
-    ctx->error_found = TRUE;
-}
-
-/* פונקציית דמה להוספת סמל לטבלה. עליך להשלים את הלוגיקה האמיתית שלה ב- symbol_table.c */
-static boolean add_symbol(AssemblerContext *ctx, const char *name, int value, 
-                          boolean is_code, boolean is_data, boolean is_extern) {
-    /* TODO: לחפש אם הסמל קיים. אם כן -> להחזיר FALSE. 
-       אם לא -> להקצות צומת חדש, לאתחל, ולהוסיף ל- ctx->symbol_head ולהחזיר TRUE. */
-    return TRUE; 
-}
-
-/* ================== הפונקציה הראשית של המעבר ================== */
-
-boolean run_first_pass(const char *filename, AssemblerContext *ctx) {
-    FILE *file;
+/* הפונקציה הראשית של המעבר הראשון */
+boolean first_pass(FILE *am_file, AssemblerContext *context) {
     char line[MAX_LINE_LENGTH + 2];
-    char *ptr;
     char first_word[MAX_LINE_LENGTH + 2];
     char label_name[MAX_LABEL_LENGTH + 2];
-    boolean has_label;
-    const command_entry *cmd;
-    
-    file = fopen(filename, "r");
-    if (file == NULL) {
-        fprintf(stderr, "Fatal Error: Cannot open file %s for first pass.\n", filename);
-        return FALSE;
-    }
+    char *line_ptr;
+    boolean symbol_flag;
 
-    /* 1. אתחול מונים (לפי עמוד 48) */
-    ctx->ic = INITIAL_IC;
-    ctx->dc = 0;
-    ctx->line_number = 1;
-    ctx->error_found = FALSE;
+    /* אתחול המונים לפי דרישות הפרויקט (עמוד 48) */
+    context->ic = INITIAL_IC; /* מתחיל ב-100 */
+    context->dc = 0;          /* מתחיל ב-0 */
+    context->line_number = 1;
+    context->error_found = FALSE;
 
-    /* 2. קרא את השורה הבאה מקובץ המקור */
-    while (fgets(line, sizeof(line), file) != NULL) {
-        ptr = line;
-        has_label = FALSE;
+    /* סריקת הקובץ שורה אחר שורה */
+    while (fgets(line, sizeof(line), am_file) != NULL) {
+        line_ptr = line;
+        symbol_flag = FALSE;
         label_name[0] = '\0';
 
-        /* דילוג על שורות ריקות והערות */
-        if (is_empty_or_comment(ptr)) {
-            ctx->line_number++;
+        /* דילוג על שורות ריקות או הערות */
+        if (is_empty_or_comment(line_ptr)) {
+            context->line_number++;
             continue;
         }
 
-        extract_word(&ptr, first_word);
+        extract_word(&line_ptr, first_word);
 
-        /* 3+4. האם השדה הראשון הוא תווית? */
+        /* בדיקה האם המילה הראשונה היא הגדרת תווית (מסיימת בנקודתיים) */
         if (is_label_definition(first_word)) {
-            has_label = TRUE;
-            /* הסרת הנקודתיים מהשם ושמירה */
+            symbol_flag = TRUE;
+            /* העתקת שם התווית ללא הנקודתיים */
             strncpy(label_name, first_word, strlen(first_word) - 1);
             label_name[strlen(first_word) - 1] = '\0';
             
-            /* מעבר למילה הבאה בשורה */
-            extract_word(&ptr, first_word);
+            /* קריאת המילה הבאה בשורה (שם ההנחיה או ההוראה) */
+            extract_word(&line_ptr, first_word);
         }
 
-        /* 5. האם זו הנחיה לאחסון נתונים (.data או .string)? */
+        /* 1. טיפול בהנחיות נתונים (.data או .string) */
         if (strcmp(first_word, ".data") == 0 || strcmp(first_word, ".string") == 0) {
-            /* 6. אם יש הגדרת סמל, הכנס לטבלה עם מאפיין data וערך DC */
-            if (has_label) {
-                if (!add_symbol(ctx, label_name, ctx->dc, FALSE, TRUE, FALSE)) {
-                    report_error(ctx, "Label already defined");
+            if (symbol_flag) {
+                /* הוספת התווית לטבלת הסמלים עם מאפיין data וערך DC נוכחי */
+                /* פרמטרים: head, name, value, is_code, is_data, is_entry, is_extern */
+                if (!add_symbol(&(context->symbol_head), label_name, context->dc, FALSE, TRUE, FALSE, FALSE)) {
+                    fprintf(stderr, "Error at line %d: Label '%s' is already defined.\n", context->line_number, label_name);
+                    context->error_found = TRUE;
                 }
             }
             
-            /* 7. זיהוי נתונים, קידוד לתמונת הנתונים וקידום DC */
+            /* הפעלת מנתח הנתונים המתאים (שהוספנו ל-parser.c) */
             if (strcmp(first_word, ".data") == 0) {
-                /* TODO: קרא מספרים מופרדים בפסיקים, הכנס ל- data_image, קדם dc */
+                if (!parse_data_directive(&line_ptr, context)) {
+                    fprintf(stderr, "Error at line %d: Invalid .data syntax.\n", context->line_number);
+                    context->error_found = TRUE;
+                }
             } else {
-                /* TODO: קרא מחרוזת, הכנס תווים ל- data_image, הוסף 0 בסוף, קדם dc */
+                if (!parse_string_directive(&line_ptr, context)) {
+                    fprintf(stderr, "Error at line %d: Invalid .string syntax.\n", context->line_number);
+                    context->error_found = TRUE;
+                }
             }
         }
-        /* 8. האם זו הנחיית .extern או .entry? */
+        /* 2. טיפול בהנחיות .extern ו-.entry */
         else if (strcmp(first_word, ".extern") == 0 || strcmp(first_word, ".entry") == 0) {
-            /* 9. אם זו .entry, היא תטופל במעבר השני */
             if (strcmp(first_word, ".extern") == 0) {
                 char ext_label[MAX_LABEL_LENGTH + 2];
-                extract_word(&ptr, ext_label);
+                extract_word(&line_ptr, ext_label);
                 
-                if (!is_valid_label_name(ext_label)) {
-                    report_error(ctx, "Invalid extern label name");
-                } else {
-                    /* 10. הכנס לטבלת סמלים עם ערך 0 ומאפיין extern */
-                    if (!add_symbol(ctx, ext_label, 0, FALSE, FALSE, TRUE)) {
-                        report_error(ctx, "Extern label already defined");
-                    }
+                /* הוספת תווית חיצונית לטבלת הסמלים עם ערך 0 */
+                if (!add_symbol(&(context->symbol_head), ext_label, 0, FALSE, FALSE, FALSE, TRUE)) {
+                    fprintf(stderr, "Error at line %d: Extern label '%s' already defined.\n", context->line_number, ext_label);
+                    context->error_found = TRUE;
                 }
             }
-            /* אזהרה אם הגדירו תווית לפני הנחיית extern/entry (לפי ההנחיות מותר להתעלם) */
-            if (has_label) {
-                printf("Warning in line %d: Label before extern/entry is ignored.\n", ctx->line_number);
-            }
+            /* התעלמות מ-.entry במעבר הראשון (זה יטופל במעבר השני) */
         }
-        /* 11. זוהי שורת הוראה (Instruction) */
+        /* 3. טיפול בפקודות (Instructions) */
         else {
-            if (has_label) {
-                /* הכנס לטבלה עם מאפיין code וערך IC */
-                if (!add_symbol(ctx, label_name, ctx->ic, TRUE, FALSE, FALSE)) {
-                    report_error(ctx, "Label already defined");
+            if (symbol_flag) {
+                /* הוספת התווית לטבלת הסמלים עם מאפיין code וערך IC נוכחי */
+                if (!add_symbol(&(context->symbol_head), label_name, context->ic, TRUE, FALSE, FALSE, FALSE)) {
+                    fprintf(stderr, "Error at line %d: Label '%s' is already defined.\n", context->line_number, label_name);
+                    context->error_found = TRUE;
                 }
             }
             
-            /* 12. חיפוש שם הפעולה בטבלה */
-            cmd = get_command(first_word);
-            if (cmd == NULL) {
-                report_error(ctx, "Unrecognized instruction name");
-            } else {
-                /* 13-16. ניתוח אופרנדים, קידוד מילה ראשונה, וחישוב אורך ההוראה (L) */
-                int L = 1; /* כל הוראה תופסת לפחות מילה אחת */
-                
-                /* TODO: פונקציה שתנתח את שארית השורה (ptr) לפי cmd->expected_operands.
-                   לכל אופרנד שיימצא, יש להוסיף 1 ל-L (להקצות לו מילת מידע נוספת).
-                   בסיום הניתוח: ctx->ic += L; */
-                   
-                ctx->ic += L; /* עדכון זמני עד למימוש ניתוח האופרנדים */
-            }
+            /* * TODO בשלב הבא: כאן נכניס את פונקציית העזר שתנתח את הפקודה 
+             * (למשל mov, cmp), תבדוק אילו אופרנדים היא קיבלה, תבדוק חוקיות מול הטבלה,
+             * ותחשב כמה מילות זיכרון (L) הפקודה הזו תופסת.
+             */
+            
+            /* בינתיים כהכנה: מקדמים את ה-IC במילה אחת לפחות עבור הפקודה עצמה */
+            context->ic += 1; 
         }
-        ctx->line_number++;
+
+        context->line_number++;
     }
 
-    /* 17. סיום קריאת הקובץ */
-    fclose(file);
-    if (ctx->error_found) {
-        return FALSE;
+    /* עדכון כתובות של סמלי נתונים בסוף המעבר הראשון (לפי סעיף 19 באלגוריתם) */
+    if (!context->error_found) {
+        update_data_symbols(context->symbol_head, context->ic);
     }
 
-    /* 18+19. עדכון כתובות של סמלי הנתונים (הוספת ICF לכל סמל Data) */
-    /* TODO: לרוץ על ctx->symbol_head ולכל סמל שמוגדר כ-is_data, לעשות: node->value += ctx->ic; */
-
-    return TRUE;
+    return !(context->error_found);
 }
