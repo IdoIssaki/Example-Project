@@ -27,9 +27,12 @@ typedef struct {
 } machine_word;
 
 typedef struct {
-    char *name;          
-    unsigned int opcode; 
-    unsigned int funct;  
+    char name[5];
+    int opcode;
+    int funct;
+    int expected_ops;        /* מספר האופרנדים: 0, 1 או 2 */
+    int valid_src_modes[4];  /* מערך של 4 תאים לחוקיות מקור */
+    int valid_dest_modes[4]; /* מערך של 4 תאים לחוקיות יעד */
 } command_entry;
 
 typedef struct symbol_node {

@@ -1,6 +1,3 @@
-/*
- * קובץ: main.c (מיועד לבדיקת שלב הקדם-אסמבלר בלבד)
- */
 #include <stdio.h>
 #include <stdlib.h>
 #include "globals.h"
@@ -8,6 +5,7 @@
 #include "pre_assembler.h"
 #include "first_pass.h"
 #include "second_pass.h"
+#include "output_generator.h"
 
 int main(int argc, char *argv[]) {
     int i;
@@ -21,74 +19,78 @@ int main(int argc, char *argv[]) {
     }
 
     for (i = 1; i < argc; i++) {
+        /* יצירת שם הקובץ .as ופתיחתו */
         file_name = create_file_name(argv[i], ".as");
         source_file = fopen(file_name, "r");
-        
+
         if (source_file == NULL) {
             fprintf(stderr, "Error: Cannot open file '%s'. Skipping to next.\n", file_name);
             free(file_name);
             continue;
         }
 
-        /* אתחול ההקשר ללא משתנים גלובליים */
-        current_context.ic = INITIAL_IC; 
+        /* אתחול ההקשר (Context) עבור הקובץ הנוכחי */
+        current_context.ic = INITIAL_IC;
         current_context.dc = 0;
         current_context.line_number = 1;
         current_context.error_found = FALSE;
         current_context.symbol_head = NULL;
 
-        printf("Processing macros for file: %s\n", file_name);
+        printf("\n--- Processing file: %s.as ---\n", argv[i]);
+        printf("Step 1: Processing macros...\n");
 
-        /* הפעלת שלב הפרישה בלבד */
+        /* שלב 1: פרישת מקרואים (קדם-אסמבלר) */
         if (pre_assemble(source_file, argv[i], &current_context)) {
-            /* 1. קודם כל הכרזת כל המשתנים בתחילת הבלוק! */
             char *am_file_name;
             FILE *am_file;
-            ext_ptr ext_list_head = NULL; /* <-- העלינו את ההכרזה לכאן */
+            ext_ptr ext_list_head = NULL;
 
-            /* 2. רק אז שורות קוד וקריאות לפונקציות */
             printf("Success! Generated %s.am\n", argv[i]);
 
-            /* --- הפעלת המעברים --- */
+            /* שלב 2: פתיחת קובץ ה-.am שנוצר לצורך המעברים */
             am_file_name = create_file_name(argv[i], ".am");
             am_file = fopen(am_file_name, "r");
 
             if (am_file != NULL) {
-                printf("Starting first pass for: %s\n", am_file_name);
+                printf("Step 2: Starting first pass...\n");
+
+                /* מעבר ראשון */
                 if (first_pass(am_file, &current_context)) {
                     printf("First pass completed successfully!\n");
 
-                    /* --- הפעלת המעבר השני --- */
                     /* חובה: החזרת סמן הקובץ להתחלה לפני המעבר השני */
                     rewind(am_file);
 
-                    printf("Starting second pass...\n");
+                    printf("Step 3: Starting second pass...\n");
+
+                    /* מעבר שני - השלמת תוויות ו-External */
                     if (second_pass(am_file, &current_context, &ext_list_head)) {
                         printf("Second pass completed successfully!\n");
 
-                        /* כאן יבוא השלב הבא והאחרון: ייצור קובצי הפלט */
-                        /* (קובצי .ob, .ent, .ext) */
+                        /* שלב 4 והאחרון: ייצור קובצי הפלט (.ob, .ent, .ext) */
+                        printf("Step 4: Generating output files...\n");
+                        generate_output_files(argv[i], &current_context, ext_list_head);
+
+                        printf(">>> Finished processing %s successfully!\n", argv[i]);
 
                     } else {
                         printf("Failed: Errors found during second pass.\n");
                     }
-
                 } else {
                     printf("Failed: Errors found during first pass.\n");
                 }
+
                 fclose(am_file);
             } else {
-                fprintf(stderr, "Error: Cannot open .am file for passes.\n");
+                fprintf(stderr, "Error: Cannot open %s.am for reading.\n", argv[i]);
             }
 
-            /* שחרור הזיכרון */
             free(am_file_name);
+            /* כאן כדאי להוסיף פונקציה לשחרור טבלת הסמלים בסיום הקובץ */
 
         } else {
-            /* אם הפרישה נכשלה */
-            printf("Failed: Errors found in %s\n", file_name);
+            printf("Failed: Errors found during macro expansion in %s\n", file_name);
         }
-
 
         fclose(source_file);
         free(file_name);
@@ -96,4 +98,3 @@ int main(int argc, char *argv[]) {
 
     return EXIT_SUCCESS;
 }
-
