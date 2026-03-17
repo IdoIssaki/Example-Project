@@ -20,7 +20,7 @@ static const command_entry commands_table[] = {
         {"stop", 15, 0, 0, {0, 0, 0, 0}, {0, 0, 0, 0}}
 };
 
-#define NUM_COMMANDS (sizeof(commands_table) / sizeof(commands_table[0]))
+
 #define NUM_REGISTERS 8
 
 static const char *registers_table[] = {"r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7"};
