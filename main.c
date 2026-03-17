@@ -7,6 +7,7 @@
 #include "utils.h"
 #include "pre_assembler.h"
 #include "first_pass.h"
+#include "second_pass.h"
 
 int main(int argc, char *argv[]) {
     int i;
@@ -47,7 +48,7 @@ int main(int argc, char *argv[]) {
             /* 2. רק אז שורות קוד וקריאות לפונקציות */
             printf("Success! Generated %s.am\n", argv[i]);
 
-            /* --- הפעלת המעבר הראשון --- */
+            /* --- הפעלת המעברים --- */
             am_file_name = create_file_name(argv[i], ".am");
             am_file = fopen(am_file_name, "r");
 
@@ -55,16 +56,38 @@ int main(int argc, char *argv[]) {
                 printf("Starting first pass for: %s\n", am_file_name);
                 if (first_pass(am_file, &current_context)) {
                     printf("First pass completed successfully!\n");
+
+                    /* --- הפעלת המעבר השני --- */
+                    /* חובה: החזרת סמן הקובץ להתחלה לפני המעבר השני */
+                    rewind(am_file);
+
+                    /* הגדרת ראש הרשימה המקושרת לסמלים חיצוניים */
+                    ext_ptr ext_list_head = NULL;
+
+                    printf("Starting second pass...\n");
+                    if (second_pass(am_file, &current_context, &ext_list_head)) {
+                        printf("Second pass completed successfully!\n");
+
+                        /* כאן יבוא השלב הבא והאחרון: ייצור קובצי הפלט */
+                        /* (קובצי .ob, .ent, .ext) */
+
+                    } else {
+                        printf("Failed: Errors found during second pass.\n");
+                    }
+
                 } else {
                     printf("Failed: Errors found during first pass.\n");
                 }
                 fclose(am_file);
             } else {
-                fprintf(stderr, "Error: Cannot open .am file for first pass.\n");
+                fprintf(stderr, "Error: Cannot open .am file for passes.\n");
             }
+
+            /* החשוב מכל - שחרור הזיכרון! בדיוק איפה שהוא צריך להיות */
             free(am_file_name);
 
         } else {
+            /* אם הפרישה נכשלה */
             printf("Failed: Errors found in %s\n", file_name);
         }
 
@@ -75,3 +98,4 @@ int main(int argc, char *argv[]) {
 
     return EXIT_SUCCESS;
 }
+
