@@ -79,3 +79,4 @@ boolean is_valid_string_literal(const char *str) {
     }
     return TRUE;
 }
+

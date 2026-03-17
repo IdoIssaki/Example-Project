@@ -14,3 +14,4 @@ boolean is_valid_number(const char *str);
 boolean is_valid_string_literal(const char *str);
 
 #endif
+

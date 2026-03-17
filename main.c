@@ -37,25 +37,37 @@ int main(int argc, char *argv[]) {
         current_context.symbol_head = NULL;
 
         printf("Processing macros for file: %s\n", file_name);
-        
-        if (pre_assemble(source_file, argv[i], &current_context)) {
-            char am_file_name[256];
-            printf("Success! Generated %s.am\n", argv[i]);
-            
-            /* Prepare the filename with the .am extension for the first pass */
-            sprintf(am_file_name, "%s.am", argv[i]);
 
-            /* Execute the first pass */
-            if (execute_first_pass(am_file_name, &current_context)) {
-                printf("First pass completed successfully for %s\n", am_file_name);
-                
-                /* The second pass will be called here in the future */
+        /* הפעלת שלב הפרישה בלבד */
+        if (pre_assemble(source_file, argv[i], &current_context)) {
+            /* 1. קודם כל הכרזת משתנים בתחילת הבלוק */
+            char *am_file_name;
+            FILE *am_file;
+
+            /* 2. רק אז שורות קוד וקריאות לפונקציות */
+            printf("Success! Generated %s.am\n", argv[i]);
+
+            /* --- הפעלת המעבר הראשון --- */
+            am_file_name = create_file_name(argv[i], ".am");
+            am_file = fopen(am_file_name, "r");
+
+            if (am_file != NULL) {
+                printf("Starting first pass for: %s\n", am_file_name);
+                if (first_pass(am_file, &current_context)) {
+                    printf("First pass completed successfully!\n");
+                } else {
+                    printf("Failed: Errors found during first pass.\n");
+                }
+                fclose(am_file);
             } else {
-                printf("Errors found during the first pass in %s\n", am_file_name);
+                fprintf(stderr, "Error: Cannot open .am file for first pass.\n");
             }
+            free(am_file_name);
+
         } else {
             printf("Failed: Errors found in %s\n", file_name);
         }
+
 
         fclose(source_file);
         free(file_name);
