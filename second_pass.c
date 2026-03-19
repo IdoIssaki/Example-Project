@@ -43,7 +43,20 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
 
         extract_word(&line_ptr, first_word);
 
-        if (is_label_definition(first_word)) {
+        /* בדיקה אבסולוטית בדומה למעבר הראשון */
+        if (strlen(first_word) > 0 && first_word[strlen(first_word) - 1] == ':') {
+            if (!((first_word[0] >= 'A' && first_word[0] <= 'Z') || (first_word[0] >= 'a' && first_word[0] <= 'z'))) {
+                fprintf(stderr, "Error line %d: Invalid label '%s' (Label MUST start with a letter)\n", context->line_number, first_word);
+                context->error_found = TRUE;
+                context->line_number++;
+                continue;
+            }
+            if (!is_label_definition(first_word)) {
+                fprintf(stderr, "Error line %d: Invalid label syntax '%s'\n", context->line_number, first_word);
+                context->error_found = TRUE;
+                context->line_number++;
+                continue;
+            }
             extract_word(&line_ptr, first_word);
         }
 
@@ -54,12 +67,19 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
         else if (strcmp(first_word, ".entry") == 0) {
             symbol_ptr sym;
             extract_word(&line_ptr, label);
-            sym = get_symbol(context->symbol_head, label);
-            if (sym) {
-                sym->is_entry = TRUE;
-            } else {
-                fprintf(stderr, "Error line %d: Undefined entry symbol '%s'\n", context->line_number, label);
+
+            /* בדיקה שאנטרי מתחיל באות */
+            if (!((label[0] >= 'A' && label[0] <= 'Z') || (label[0] >= 'a' && label[0] <= 'z'))) {
+                fprintf(stderr, "Error line %d: Invalid entry label '%s' (Must start with a letter)\n", context->line_number, label);
                 context->error_found = TRUE;
+            } else {
+                sym = get_symbol(context->symbol_head, label);
+                if (sym) {
+                    sym->is_entry = TRUE;
+                } else {
+                    fprintf(stderr, "Error line %d: Undefined entry symbol '%s'\n", context->line_number, label);
+                    context->error_found = TRUE;
+                }
             }
         }
         else {
@@ -79,10 +99,17 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                     if (*line_ptr == ',') line_ptr++;
                     skip_whitespaces(&line_ptr);
                     k = 0;
-                    while (*line_ptr && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
+                    while (*line_ptr && *line_ptr != ',' && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
                         dst[k++] = *line_ptr++;
                     }
                     dst[k] = '\0';
+
+                    if (strlen(src) == 0 || strlen(dst) == 0) {
+                        fprintf(stderr, "Error line %d: Missing operand(s) for command '%s'\n", context->line_number, first_word);
+                        context->error_found = TRUE;
+                        context->line_number++;
+                        continue;
+                    }
 
                     src_m = (src[0] == '#') ? 0 : ((strlen(src) == 2 && src[0] == 'r' && src[1] >= '0' && src[1] <= '7') ? 3 : (src[0] == '%' ? 2 : 1));
                     dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
@@ -91,16 +118,30 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                 else if (cmd->expected_ops == 1) {
                     k = 0;
                     skip_whitespaces(&line_ptr);
-                    while (*line_ptr && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
+                    while (*line_ptr && *line_ptr != ',' && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
                         dst[k++] = *line_ptr++;
                     }
                     dst[k] = '\0';
+
+                    if (strlen(dst) == 0) {
+                        fprintf(stderr, "Error line %d: Missing operand for command '%s'\n", context->line_number, first_word);
+                        context->error_found = TRUE;
+                        context->line_number++;
+                        continue;
+                    }
 
                     dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
                     L = 2;
                 }
 
-                /* בדיקת קיום סמל מקור */
+                skip_whitespaces(&line_ptr);
+                if (*line_ptr != '\0' && *line_ptr != '\n') {
+                    fprintf(stderr, "Error line %d: Too many operands or extraneous text for command '%s'\n", context->line_number, first_word);
+                    context->error_found = TRUE;
+                    context->line_number++;
+                    continue;
+                }
+
                 if (src_m == 1 || src_m == 2) {
                     char *sym_name = (src_m == 2) ? src + 1 : src;
                     symbol_ptr sym = get_symbol(context->symbol_head, sym_name);
@@ -120,13 +161,11 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                             }
                         }
                     } else {
-                        /* --- הנה התיקון שלנו! --- */
                         fprintf(stderr, "Error line %d: Undefined symbol '%s'\n", context->line_number, sym_name);
                         context->error_found = TRUE;
                     }
                 }
 
-                /* בדיקת קיום סמל יעד */
                 if (dst_m == 1 || dst_m == 2) {
                     char *sym_name = (dst_m == 2) ? dst + 1 : dst;
                     symbol_ptr sym = get_symbol(context->symbol_head, sym_name);
@@ -147,7 +186,6 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                             }
                         }
                     } else {
-                        /* --- הנה התיקון שלנו! --- */
                         fprintf(stderr, "Error line %d: Undefined symbol '%s'\n", context->line_number, sym_name);
                         context->error_found = TRUE;
                     }

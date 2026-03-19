@@ -34,7 +34,20 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
 
         extract_word(&line_ptr, first_word);
 
-        if (is_label_definition(first_word)) {
+        /* --- בדיקה אבסולוטית: האם התווית מתחילה באות? --- */
+        if (strlen(first_word) > 0 && first_word[strlen(first_word) - 1] == ':') {
+            if (!((first_word[0] >= 'A' && first_word[0] <= 'Z') || (first_word[0] >= 'a' && first_word[0] <= 'z'))) {
+                fprintf(stderr, "Error line %d: Invalid label '%s' (Label MUST start with a letter)\n", context->line_number, first_word);
+                context->error_found = TRUE;
+                context->line_number++;
+                continue;
+            }
+            if (!is_label_definition(first_word)) {
+                fprintf(stderr, "Error line %d: Invalid label syntax '%s'\n", context->line_number, first_word);
+                context->error_found = TRUE;
+                context->line_number++;
+                continue;
+            }
             symbol_flag = TRUE;
             strncpy(label, first_word, strlen(first_word) - 1);
             label[strlen(first_word) - 1] = '\0';
@@ -80,10 +93,18 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
         }
         else if (strcmp(first_word, ".extern") == 0) {
             extract_word(&line_ptr, label);
-            if (label[0] != '\0') add_symbol(&context->symbol_head, label, 0, 0, 0, 1);
+            if (label[0] != '\0') {
+                /* בדיקה שהאקסטרן מתחיל באות */
+                if (!((label[0] >= 'A' && label[0] <= 'Z') || (label[0] >= 'a' && label[0] <= 'z'))) {
+                    fprintf(stderr, "Error line %d: Invalid extern label '%s' (Must start with a letter)\n", context->line_number, label);
+                    context->error_found = TRUE;
+                } else {
+                    add_symbol(&context->symbol_head, label, 0, 0, 0, 1);
+                }
+            }
         }
         else if (strcmp(first_word, ".entry") == 0) {
-            /* דלג במעבר ראשון */
+            /* המעבר השני מטפל בזה */
         }
         else {
             cmd = get_command(first_word);
@@ -96,7 +117,6 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
 
                 if (symbol_flag) add_symbol(&context->symbol_head, label, context->ic, 1, 0, 0);
 
-                /* פיענוח אופרנדים חסין לרווחים ופסיקים */
                 if (cmd->expected_ops == 2) {
                     k = 0;
                     skip_whitespaces(&line_ptr);
@@ -104,32 +124,56 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                         src[k++] = *line_ptr++;
                     }
                     src[k] = '\0';
+
                     skip_whitespaces(&line_ptr);
                     if (*line_ptr == ',') line_ptr++;
+
                     skip_whitespaces(&line_ptr);
                     k = 0;
-                    while (*line_ptr && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
+                    while (*line_ptr && *line_ptr != ',' && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
                         dst[k++] = *line_ptr++;
                     }
                     dst[k] = '\0';
 
+                    if (strlen(src) == 0 || strlen(dst) == 0) {
+                        fprintf(stderr, "Error line %d: Missing operand(s) for command '%s'\n", context->line_number, first_word);
+                        context->error_found = TRUE;
+                        context->line_number++;
+                        continue;
+                    }
+
                     src_m = (src[0] == '#') ? 0 : ((strlen(src) == 2 && src[0] == 'r' && src[1] >= '0' && src[1] <= '7') ? 3 : (src[0] == '%' ? 2 : 1));
                     dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
-                    L = 3; /* ללא צמצום מילים עבור רגיסטרים! */
+                    L = 3;
                 }
                 else if (cmd->expected_ops == 1) {
                     k = 0;
                     skip_whitespaces(&line_ptr);
-                    while (*line_ptr && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
+                    while (*line_ptr && *line_ptr != ',' && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
                         dst[k++] = *line_ptr++;
                     }
                     dst[k] = '\0';
+
+                    if (strlen(dst) == 0) {
+                        fprintf(stderr, "Error line %d: Missing operand for command '%s'\n", context->line_number, first_word);
+                        context->error_found = TRUE;
+                        context->line_number++;
+                        continue;
+                    }
 
                     dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
                     L = 2;
                 }
 
-                /* קידוד מילת הפקודה הראשונה */
+                /* --- בדיקת טקסט מיותר לכל הפקודות (כולל stop שמקבלת 0) --- */
+                skip_whitespaces(&line_ptr);
+                if (*line_ptr != '\0' && *line_ptr != '\n') {
+                    fprintf(stderr, "Error line %d: Too many operands or extraneous text for command '%s'\n", context->line_number, first_word);
+                    context->error_found = TRUE;
+                    context->line_number++;
+                    continue;
+                }
+
                 context->code_image[context->ic - INITIAL_IC].value =
                         (cmd->opcode << 8) |
                         (cmd->funct << 4) |
@@ -137,7 +181,6 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                         (dst_m != -1 ? dst_m : 0);
                 context->code_image[context->ic - INITIAL_IC].are = 'A';
 
-                /* הכנת מקום לאופרנדים ומילוי רגיסטרים/מיידיים */
                 if (src_m != -1) {
                     if (src_m == 0 || src_m == 3) {
                         val = (src_m == 0) ? atoi(src + 1) : (1 << (src[1] - '0'));
@@ -145,7 +188,7 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                         context->code_image[context->ic - INITIAL_IC + 1].are = 'A';
                     } else {
                         context->code_image[context->ic - INITIAL_IC + 1].value = 0;
-                        context->code_image[context->ic - INITIAL_IC + 1].are = '\0'; /* יתמלא במעבר השני */
+                        context->code_image[context->ic - INITIAL_IC + 1].are = '\0';
                     }
                 }
                 if (dst_m != -1) {
@@ -156,7 +199,7 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                         context->code_image[context->ic - INITIAL_IC + offset].are = 'A';
                     } else {
                         context->code_image[context->ic - INITIAL_IC + offset].value = 0;
-                        context->code_image[context->ic - INITIAL_IC + offset].are = '\0'; /* יתמלא במעבר השני */
+                        context->code_image[context->ic - INITIAL_IC + offset].are = '\0';
                     }
                 }
 
@@ -174,4 +217,3 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
 
     return !context->error_found;
 }
-
