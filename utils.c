@@ -6,6 +6,8 @@
 #include <string.h>
 #include "utils.h"
 
+/* --- פונקציות העזר המקוריות שלך --- */
+
 void *safe_malloc(size_t size) {
     void *ptr = malloc(size);
     if (ptr == NULL) {
@@ -39,4 +41,62 @@ char *create_file_name(const char *original_name, const char *extension) {
     strcpy(full_name, original_name);
     strcat(full_name, extension);
     return full_name;
+}
+
+/* --- פונקציות ניהול טבלת הסמלים (חדש) --- */
+boolean add_symbol(symbol_ptr *head, const char *name, int value, int is_code, int is_data, int is_extern) {
+    symbol_ptr new_node;
+    symbol_ptr current = *head;
+
+    /* בדיקה אם הסמל כבר קיים בטבלה (למניעת כפילויות) */
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0) {
+            return FALSE;
+        }
+        current = current->next;
+    }
+
+    /* יצירת הצומת החדש */
+    new_node = (symbol_ptr)safe_malloc(sizeof(symbol_node));
+    strcpy(new_node->name, name);
+    new_node->value = value;
+    new_node->is_code = is_code;
+    new_node->is_data = is_data;
+    new_node->is_extern = is_extern;
+    new_node->is_entry = FALSE;
+    new_node->next = NULL; /* הוא הולך להיות האחרון ברשימה */
+
+    /* הוספה לזנב הרשימה (כדי לשמור על הסדר המקורי) */
+    if (*head == NULL) {
+        *head = new_node; /* אם הרשימה ריקה, הוא הראשון */
+    } else {
+        current = *head;
+        while (current->next != NULL) {
+            current = current->next; /* מתקדמים עד הסוף */
+        }
+        current->next = new_node; /* מחברים אותו לזנב */
+    }
+
+    return TRUE;
+}
+
+
+symbol_ptr get_symbol(symbol_ptr head, const char *name) {
+    symbol_ptr current = head;
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0) {
+            return current; /* נמצא */
+        }
+        current = current->next;
+    }
+    return NULL; /* לא נמצא */
+}
+
+void free_symbols(symbol_ptr head) {
+    symbol_ptr temp;
+    while (head != NULL) {
+        temp = head;
+        head = head->next;
+        free(temp); /* שחרור הזיכרון של כל צומת */
+    }
 }

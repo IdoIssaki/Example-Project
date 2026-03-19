@@ -1,103 +1,154 @@
-/*
- * קובץ: second_pass.c
- */
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "second_pass.h"
 #include "parser.h"
 #include "utils.h"
+#include "tables.h"
 
-boolean run_second_pass(const char *filename, AssemblerContext *ctx) {
-    FILE *file;
+static void add_ext(ext_ptr *head, const char *name, int address) {
+    ext_ptr new_node = (ext_ptr)safe_malloc(sizeof(ext_node));
+    strcpy(new_node->name, name);
+    new_node->address = address;
+    new_node->next = NULL;
+
+    if (*head == NULL) {
+        *head = new_node;
+    } else {
+        ext_ptr temp = *head;
+        while (temp->next != NULL) temp = temp->next;
+        temp->next = new_node;
+    }
+}
+
+boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_head) {
     char line[MAX_LINE_LENGTH + 2];
-    char *ptr;
-    char first_word[MAX_LINE_LENGTH + 2];
+    char first_word[MAX_LINE_LENGTH], label[MAX_LABEL_LENGTH];
+    char *line_ptr;
 
-    file = fopen(filename, "r");
-    if (file == NULL) {
-        fprintf(stderr, "Fatal Error: Cannot open file %s for second pass.\n", filename);
-        return FALSE;
-    }
+    context->ic = INITIAL_IC;
+    context->line_number = 1;
 
-    /* 1. אתחול מונה ההוראות לכתובת ההתחלתית (לפי עמוד 50 בחוברת) */
-    ctx->ic = INITIAL_IC; /* מתחיל ב-100 */
-    ctx->line_number = 1;
+    while (fgets(line, sizeof(line), am_file)) {
+        const command_entry *cmd;
+        char src[MAX_LINE_LENGTH], dst[MAX_LINE_LENGTH];
+        int src_m = -1, dst_m = -1, L = 1, offset, k;
 
-    /* 2. קרא את השורה הבאה מקובץ המקור */
-    while (fgets(line, sizeof(line), file) != NULL) {
-        ptr = line;
+        line_ptr = line;
 
-        /* דילוג על שורות ריקות והערות */
-        if (is_empty_or_comment(ptr)) {
-            ctx->line_number++;
+        if (is_empty_or_comment(line_ptr)) {
+            context->line_number++;
             continue;
         }
 
-        extract_word(&ptr, first_word);
+        extract_word(&line_ptr, first_word);
 
-        /* 3. האם המילה הראשונה היא תווית? */
         if (is_label_definition(first_word)) {
-            /* במעבר השני אנחנו מתעלמים מהגדרות של תוויות (כבר הוספנו אותן במעבר הראשון) */
-            extract_word(&ptr, first_word);
+            extract_word(&line_ptr, first_word);
         }
 
-        /* 4. האם זו הנחיית נתונים (.data או .string) או .extern? */
-        if (strcmp(first_word, ".data") == 0 || 
-            strcmp(first_word, ".string") == 0 || 
-            strcmp(first_word, ".extern") == 0) {
-            /* 5. מתעלמים! כבר טיפלנו בהם במעבר הראשון */
-            ctx->line_number++;
+        if (strcmp(first_word, ".data") == 0 || strcmp(first_word, ".string") == 0 || strcmp(first_word, ".extern") == 0) {
+            context->line_number++;
             continue;
         }
-
-        /* 6. האם זו הנחיית .entry? */
-        if (strcmp(first_word, ".entry") == 0) {
-            char entry_label[MAX_LABEL_LENGTH + 2];
-            extract_word(&ptr, entry_label);
-            
-            /* 7. מסמנים את התווית בטבלת הסמלים כ-entry */
-            /* TODO: 
-             * 1. הפעל פונקציה: symbol = find_symbol(ctx->symbol_head, entry_label);
-             * 2. אם הפונקציה החזירה NULL (התווית לא קיימת) -> דווח על שגיאה (ctx->error_found = TRUE).
-             * 3. אם קיימת -> שנה את המאפיין: symbol->is_entry = TRUE;
-             */
+        else if (strcmp(first_word, ".entry") == 0) {
+            symbol_ptr sym;
+            extract_word(&line_ptr, label);
+            sym = get_symbol(context->symbol_head, label);
+            if (sym) sym->is_entry = TRUE;
+            else {
+                fprintf(stderr, "Error line %d: Undefined entry symbol '%s'\n", context->line_number, label);
+                context->error_found = TRUE;
+            }
         }
-        /* 8. אם הגענו לכאן - זוהי פקודת הוראה (Instruction) */
         else {
-            /* 9. השלמת הקידוד לתמונת ההוראות */
-            /* TODO: 
-             * כאן צריך לנתח את האופרנדים שוב. 
-             * - אם האופרנד הוא מספר (מיעון מיידי) או רגיסטר -> כבר קודדנו אותו במעבר 1.
-             * - אם האופרנד הוא *תווית* (מיעון ישיר או יחסי):
-             * 1. חפש את התווית בטבלת הסמלים (find_symbol).
-             * 2. אם היא לא שם -> שגיאה (שימוש בתווית שלא הוגדרה).
-             * 3. אם היא שם, קח את הערך שלה (symbol->value) וקודד אותו למילה הריקה שהשארנו ב- instructions_image[ic].
-             * 4. אם התווית מוגדרת כ-Extern -> הוסף רשומה חדשה לרשימת ה-externals שלך (כדי שאחר כך תדפיס אותה לקובץ .ext).
-             *
-             * לבסוף, קדם את ה-IC בהתאם לכמות מילות הזיכרון (L) שהפקודה תופסת.
-             */
-            int L = 1; /* אורך מינימלי. יש לעדכן לפי ניתוח האופרנדים */
-            ctx->ic += L;
+            cmd = get_command(first_word);
+            if (cmd) {
+                memset(src, 0, sizeof(src));
+                memset(dst, 0, sizeof(dst));
+
+                /* אותו פיענוח בדיוק כמו במעבר הראשון */
+                if (cmd->expected_ops == 2) {
+                    k = 0;
+                    skip_whitespaces(&line_ptr);
+                    while (*line_ptr && *line_ptr != ',' && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
+                        src[k++] = *line_ptr++;
+                    }
+                    src[k] = '\0';
+                    skip_whitespaces(&line_ptr);
+                    if (*line_ptr == ',') line_ptr++;
+                    skip_whitespaces(&line_ptr);
+                    k = 0;
+                    while (*line_ptr && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
+                        dst[k++] = *line_ptr++;
+                    }
+                    dst[k] = '\0';
+
+                    src_m = (src[0] == '#') ? 0 : ((strlen(src) == 2 && src[0] == 'r' && src[1] >= '0' && src[1] <= '7') ? 3 : (src[0] == '%' ? 2 : 1));
+                    dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
+                    L = 3;
+                }
+                else if (cmd->expected_ops == 1) {
+                    k = 0;
+                    skip_whitespaces(&line_ptr);
+                    while (*line_ptr && *line_ptr != ' ' && *line_ptr != '\t' && *line_ptr != '\n') {
+                        dst[k++] = *line_ptr++;
+                    }
+                    dst[k] = '\0';
+
+                    dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
+                    L = 2;
+                }
+
+                /* השלמת כתובות במעבר השני */
+                if (src_m == 1 || src_m == 2) {
+                    char *sym_name = (src_m == 2) ? src + 1 : src;
+                    symbol_ptr sym = get_symbol(context->symbol_head, sym_name);
+
+                    if (sym) {
+                        if (sym->is_extern) {
+                            context->code_image[context->ic - INITIAL_IC + 1].value = 0;
+                            context->code_image[context->ic - INITIAL_IC + 1].are = 'E';
+                            add_ext(ext_list_head, sym->name, context->ic + 1);
+                        } else {
+                            if (src_m == 2) {
+                                context->code_image[context->ic - INITIAL_IC + 1].value = (sym->value - context->ic) & 0xFFF;
+                                context->code_image[context->ic - INITIAL_IC + 1].are = 'A';
+                            } else {
+                                context->code_image[context->ic - INITIAL_IC + 1].value = sym->value & 0xFFF;
+                                context->code_image[context->ic - INITIAL_IC + 1].are = 'R';
+                            }
+                        }
+                    }
+                }
+
+                if (dst_m == 1 || dst_m == 2) {
+                    char *sym_name = (dst_m == 2) ? dst + 1 : dst;
+                    symbol_ptr sym = get_symbol(context->symbol_head, sym_name);
+                    offset = (src_m != -1) ? 2 : 1;
+
+                    if (sym) {
+                        if (sym->is_extern) {
+                            context->code_image[context->ic - INITIAL_IC + offset].value = 0;
+                            context->code_image[context->ic - INITIAL_IC + offset].are = 'E';
+                            add_ext(ext_list_head, sym->name, context->ic + offset);
+                        } else {
+                            if (dst_m == 2) {
+                                context->code_image[context->ic - INITIAL_IC + offset].value = (sym->value - context->ic) & 0xFFF;
+                                context->code_image[context->ic - INITIAL_IC + offset].are = 'A';
+                            } else {
+                                context->code_image[context->ic - INITIAL_IC + offset].value = sym->value & 0xFFF;
+                                context->code_image[context->ic - INITIAL_IC + offset].are = 'R';
+                            }
+                        }
+                    }
+                }
+
+                context->ic += L;
+            }
         }
-
-        ctx->line_number++;
+        context->line_number++;
     }
 
-    fclose(file);
-
-    /* 10. האם נמצאו שגיאות (במעבר הראשון או השני)? */
-    if (ctx->error_found) {
-        /* עוצרים כאן ולא מייצרים את קבצי הפלט! */
-        return FALSE;
-    }
-
-    /* 11. הכל עבר בהצלחה! יצירת קבצי הפלט (השלב הסופי בהחלט) */
-    /* TODO: 
-     * כאן תקרא ל-3 פונקציות (לרוב נהוג לשים אותן בקובץ outputs.c):
-     * 1. generate_ob_file(ctx, filename);  -> מדפיס את תמונות הזיכרון.
-     * 2. generate_ent_file(ctx, filename); -> מדפיס רק סמלים שהם is_entry == TRUE.
-     * 3. generate_ext_file(ctx, filename); -> מדפיס את רשימת השימושים ב-extern.
-     */
-
-    return TRUE;
+    return !context->error_found;
 }

@@ -1,21 +1,27 @@
 /*
  * קובץ: second_pass.h
- * מטרת הקובץ: ניהול והפעלת המעבר השני של האסמבלר.
+ * מטרת הקובץ: אבות-טיפוס של המעבר השני וניהול רשימת סמלים חיצוניים.
  */
 #ifndef SECOND_PASS_H
 #define SECOND_PASS_H
 
+#include <stdio.h>
 #include "globals.h"
 
+/* מבנה לשמירת כתובות של שימוש בסמלים חיצוניים (עבור קובץ .ext) */
+typedef struct ext_node {
+    char name[MAX_LABEL_LENGTH + 1];
+    int address;
+    struct ext_node *next;
+} ext_node;
+
+typedef ext_node *ext_ptr;
+
 /*
- * הפונקציה: run_second_pass
- * ------------------------
- * מבצעת את המעבר השני על קובץ האסמבלי (.am).
- * משלימה את קידוד הכתובות עבור אופרנדים מסוג תווית, מטפלת בהנחיות .entry,
- * ובסיום (אם לא התגלו שגיאות בשום שלב) קוראת לפונקציות יצירת קבצי הפלט.
- *
- * מחזירה: TRUE אם המעבר הסתיים ללא שגיאות, FALSE אחרת.
+ * הפונקציה: second_pass
+ * ---------------------
+ * מבצעת את המעבר השני. משלימה קידוד של תוויות ומעדכנת entry/extern.
  */
-boolean run_second_pass(const char *filename, AssemblerContext *context);
+boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_head);
 
 #endif

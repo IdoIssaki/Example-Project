@@ -1,7 +1,6 @@
 /*
  * קובץ: parser.c
  */
- #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include "parser.h"
@@ -81,91 +80,3 @@ boolean is_valid_string_literal(const char *str) {
     return TRUE;
 }
 
-boolean parse_string_directive(char **line_ptr, AssemblerContext *ctx) {
-    char *ptr = *line_ptr;
-    
-    skip_whitespaces(&ptr);
-
-    /* בדיקה האם המחרוזת מתחילה במרכאות */
-    if (*ptr != '"') {
-        return FALSE; 
-    }
-    ptr++; 
-
-    /* סריקת התווים עד לסגירת המרכאות או סוף השורה */
-    while (*ptr != '\0' && *ptr != '"') {
-        /* תיקון: גישה לשדות ה-struct של מילת המכונה */
-        ctx->data_image[ctx->dc].value = (unsigned int)(*ptr);
-        ctx->data_image[ctx->dc].are = ARE_ABSOLUTE; /* נתונים הם תמיד Absolute */
-        ctx->dc++;
-        ptr++;
-    }
-
-    if (*ptr != '"') {
-        return FALSE; 
-    }
-    ptr++; 
-
-    /* הוספת תו סיום מחרוזת (0) חובה לפי ההנחיות! */
-    ctx->data_image[ctx->dc].value = 0;
-    ctx->data_image[ctx->dc].are = ARE_ABSOLUTE;
-    ctx->dc++;
-
-    skip_whitespaces(&ptr);
-    if (!is_empty_or_comment(ptr)) {
-        return FALSE; 
-    }
-
-    *line_ptr = ptr;
-    return TRUE;
-}
-
-boolean parse_data_directive(char **line_ptr, AssemblerContext *ctx) {
-    char *ptr = *line_ptr;
-    int value;
-    boolean comma_expected = FALSE;
-    char *end_ptr;
-
-    skip_whitespaces(&ptr);
-    if (is_empty_or_comment(ptr)) {
-        return FALSE; 
-    }
-
-    while (!is_empty_or_comment(ptr)) {
-        skip_whitespaces(&ptr);
-
-        if (*ptr == ',') {
-            if (!comma_expected) {
-                return FALSE; 
-            }
-            comma_expected = FALSE;
-            ptr++;
-            continue;
-        }
-
-        if (comma_expected) {
-            return FALSE; 
-        }
-
-        value = (int)strtol(ptr, &end_ptr, 10);
-        
-        if (ptr == end_ptr) {
-            return FALSE; 
-        }
-
-        /* תיקון: גישה לשדות ה-struct */
-        ctx->data_image[ctx->dc].value = (unsigned int)value;
-        ctx->data_image[ctx->dc].are = ARE_ABSOLUTE; /* נתונים הם תמיד Absolute */
-        ctx->dc++;
-        
-        comma_expected = TRUE; 
-        ptr = end_ptr;
-    }
-
-    if (!comma_expected) {
-        return FALSE; 
-    }
-
-    *line_ptr = ptr;
-    return TRUE;
-}
