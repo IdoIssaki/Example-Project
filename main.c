@@ -6,6 +6,7 @@
 #include "globals.h"
 #include "utils.h"
 #include "pre_assembler.h"
+#include "first_pass.h"
 
 int main(int argc, char *argv[]) {
     int i;
@@ -37,9 +38,21 @@ int main(int argc, char *argv[]) {
 
         printf("Processing macros for file: %s\n", file_name);
         
-        /* הפעלת שלב הפרישה בלבד */
         if (pre_assemble(source_file, argv[i], &current_context)) {
+            char am_file_name[256];
             printf("Success! Generated %s.am\n", argv[i]);
+            
+            /* Prepare the filename with the .am extension for the first pass */
+            sprintf(am_file_name, "%s.am", argv[i]);
+
+            /* Execute the first pass */
+            if (execute_first_pass(am_file_name, &current_context)) {
+                printf("First pass completed successfully for %s\n", am_file_name);
+                
+                /* The second pass will be called here in the future */
+            } else {
+                printf("Errors found during the first pass in %s\n", am_file_name);
+            }
         } else {
             printf("Failed: Errors found in %s\n", file_name);
         }
