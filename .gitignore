@@ -1,0 +1,33 @@
+# --- IDE Settings ---
+# חוסם את תיקיית ההגדרות של IntelliJ / CLion / PyCharm
+.idea/
+*.iml
+
+# --- Binary Executables ---
+# חוסם את הקובץ שנוצר אחרי פקודת ה-gcc
+assembler
+assembler.exe
+a.out
+
+# --- Assembler Output Files ---
+# חוסם ספציפית את קבצי הבדיקה שציינת
+file_test.am
+file_test.ob
+file_test.ext
+file_test.ent
+
+test2.am
+test2.ob
+test2.ext
+test2.ent
+
+# חסימה גנרית לכל קבצי הפלט של הפרויקט
+*.am
+*.ob
+*.ext
+*.ent
+
+# --- System & Temp Files ---
+*.o
+.DS_Store
+Thumbs.db
