@@ -1,52 +1,84 @@
-/*
- * קובץ: main.c (מיועד לבדיקת שלב הקדם-אסמבלר בלבד)
- */
 #include <stdio.h>
 #include <stdlib.h>
 #include "globals.h"
 #include "utils.h"
 #include "pre_assembler.h"
+#include "first_pass.h"
+#include "second_pass.h"
+#include "output_generator.h"
 
 int main(int argc, char *argv[]) {
     int i;
-    FILE *source_file;
-    char *file_name;
-    AssemblerContext current_context;
+    AssemblerContext ctx;
 
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s <file1> <file2> ...\n", argv[0]);
+        fprintf(stderr, "Usage: %s file1 file2 ...\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     for (i = 1; i < argc; i++) {
-        file_name = create_file_name(argv[i], ".as");
-        source_file = fopen(file_name, "r");
-        
-        if (source_file == NULL) {
-            fprintf(stderr, "Error: Cannot open file '%s'. Skipping to next.\n", file_name);
-            free(file_name);
+        char *as_name = create_file_name(argv[i], ".as");
+        char *am_name = create_file_name(argv[i], ".am");
+        FILE *as_file = fopen(as_name, "r");
+        /* אתחול ל-NULL למניעת שימוש בערכי זבל במקרה של שגיאה */
+        FILE *am_file = NULL;
+        ext_ptr ext_list = NULL;
+
+        if (!as_file) {
+            fprintf(stderr, "Error: Cannot open %s\n", as_name);
+            free(as_name);
+            free(am_name);
             continue;
         }
 
-        /* אתחול ההקשר ללא משתנים גלובליים */
-        current_context.ic = INITIAL_IC; 
-        current_context.dc = 0;
-        current_context.line_number = 1;
-        current_context.error_found = FALSE;
-        current_context.symbol_head = NULL;
+        /* אתחול ה-Context לכל קובץ מחדש */
+        ctx.ic = INITIAL_IC;
+        ctx.dc = 0;
+        ctx.line_number = 1;
+        ctx.error_found = FALSE;
+        ctx.symbol_head = NULL;
 
-        printf("Processing macros for file: %s\n", file_name);
-        
-        /* הפעלת שלב הפרישה בלבד */
-        if (pre_assemble(source_file, argv[i], &current_context)) {
-            printf("Success! Generated %s.am\n", argv[i]);
-        } else {
-            printf("Failed: Errors found in %s\n", file_name);
+        printf("\n--- Processing %s ---\n", argv[i]);
+
+        /* שלב 1: פריסת מאקרויים (Pre-Assembler) */
+        if (pre_assemble(as_file, argv[i], &ctx)) {
+            am_file = fopen(am_name, "r");
+
+            /* שלב 2: מעבר ראשון */
+            if (am_file && first_pass(am_file, &ctx)) {
+                rewind(am_file); /* חזרה לתחילת קובץ ה-am עבור המעבר השני */
+
+                /* שלב 3: מעבר שני */
+                if (second_pass(am_file, &ctx, &ext_list)) {
+                    /* שלב 4: יצירת קבצי הפלט */
+                    generate_output_files(argv[i], &ctx, ext_list);
+                    printf(">>> Done! Output files generated for %s.\n", argv[i]);
+                }
+            }
+            if (am_file) fclose(am_file);
         }
 
-        fclose(source_file);
-        free(file_name);
-    }
+        /* סגירת קובץ המקור */
+        fclose(as_file);
+
+        /* --- שחרור זיכרון יסודי לפני מעבר לקובץ הבא --- */
+        free(as_name);
+        free(am_name);
+
+        /* שחרור טבלת הסמלים (הפונקציה נמצאת ב-utils.c) */
+        free_symbols(ctx.symbol_head);
+
+        /* שחרור רשימת האקסטרנים (לולאת שחרור ישירה ב-main) */
+        {
+            ext_ptr temp_ext;
+            while (ext_list != NULL) {
+                temp_ext = ext_list;
+                ext_list = ext_list->next;
+                free(temp_ext);
+            }
+        }
+
+    } /* סוף לולאת מעבר על הקבצים */
 
     return EXIT_SUCCESS;
 }
