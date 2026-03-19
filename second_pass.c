@@ -55,8 +55,9 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
             symbol_ptr sym;
             extract_word(&line_ptr, label);
             sym = get_symbol(context->symbol_head, label);
-            if (sym) sym->is_entry = TRUE;
-            else {
+            if (sym) {
+                sym->is_entry = TRUE;
+            } else {
                 fprintf(stderr, "Error line %d: Undefined entry symbol '%s'\n", context->line_number, label);
                 context->error_found = TRUE;
             }
@@ -67,7 +68,6 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                 memset(src, 0, sizeof(src));
                 memset(dst, 0, sizeof(dst));
 
-                /* אותו פיענוח בדיוק כמו במעבר הראשון */
                 if (cmd->expected_ops == 2) {
                     k = 0;
                     skip_whitespaces(&line_ptr);
@@ -100,7 +100,7 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                     L = 2;
                 }
 
-                /* השלמת כתובות במעבר השני */
+                /* בדיקת קיום סמל מקור */
                 if (src_m == 1 || src_m == 2) {
                     char *sym_name = (src_m == 2) ? src + 1 : src;
                     symbol_ptr sym = get_symbol(context->symbol_head, sym_name);
@@ -119,9 +119,14 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                                 context->code_image[context->ic - INITIAL_IC + 1].are = 'R';
                             }
                         }
+                    } else {
+                        /* --- הנה התיקון שלנו! --- */
+                        fprintf(stderr, "Error line %d: Undefined symbol '%s'\n", context->line_number, sym_name);
+                        context->error_found = TRUE;
                     }
                 }
 
+                /* בדיקת קיום סמל יעד */
                 if (dst_m == 1 || dst_m == 2) {
                     char *sym_name = (dst_m == 2) ? dst + 1 : dst;
                     symbol_ptr sym = get_symbol(context->symbol_head, sym_name);
@@ -141,6 +146,10 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                                 context->code_image[context->ic - INITIAL_IC + offset].are = 'R';
                             }
                         }
+                    } else {
+                        /* --- הנה התיקון שלנו! --- */
+                        fprintf(stderr, "Error line %d: Undefined symbol '%s'\n", context->line_number, sym_name);
+                        context->error_found = TRUE;
                     }
                 }
 
