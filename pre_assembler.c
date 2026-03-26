@@ -54,10 +54,8 @@ boolean pre_assemble(FILE *source_file, const char *base_file_name, AssemblerCon
         if (is_empty_or_comment(line_ptr)) {
             if (is_inside_macro) {
                 if (current_macro != NULL) add_macro_line(current_macro, line);
-                fputs("\n", am_file);
-            } else {
-                fputs(line, am_file);
             }
+            /* לא מדפיסים כלום! פשוט מדלגים לשורה הבאה */
             context->line_number++;
             continue;
         }
@@ -74,13 +72,11 @@ boolean pre_assemble(FILE *source_file, const char *base_file_name, AssemblerCon
                 }
                 is_inside_macro = FALSE;
                 current_macro = NULL;
-                fputs("\n", am_file);
             } else {
                 /* נכנס לכאן גם אם המאקרו תקין וגם אם הוא בסטטוס "התאוששות משגיאה" */
                 if (current_macro != NULL) {
                     add_macro_line(current_macro, line);
                 }
-                fputs("\n", am_file);
             }
         }
             /* --- טיפול מחוץ למאקרו (קוד רגיל) --- */
@@ -95,7 +91,6 @@ boolean pre_assemble(FILE *source_file, const char *base_file_name, AssemblerCon
                 context->error_found = TRUE;
                 is_inside_macro = TRUE; /* טריק התאוששות: נכנסים כדי לבלוע את ההמשך */
                 current_macro = NULL;
-                fputs("\n", am_file);
                 context->line_number++;
                 continue;
             }
@@ -139,13 +134,11 @@ boolean pre_assemble(FILE *source_file, const char *base_file_name, AssemblerCon
                     current_macro = add_macro(&macro_head, macro_name);
                     is_inside_macro = TRUE;
                 }
-                fputs("\n", am_file);
             }
                 /* mcroend ללא פתיחה */
             else if (strcmp(first_word, "mcroend") == 0) {
                 fprintf(stderr, "Error at line %d: 'mcroend' encountered without matching 'mcro'.\n", context->line_number);
                 context->error_found = TRUE;
-                fputs("\n", am_file);
             }
                 /* קוד רגיל או תווית */
             else {

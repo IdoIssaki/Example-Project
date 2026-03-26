@@ -75,19 +75,43 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                         context->dc++;
                     }
                 }
-            } else {
+            } else { /* טיפול ב- .string */
                 skip_whitespaces(&line_ptr);
-                if (*line_ptr == '\"') {
-                    line_ptr++;
+
+                /* 1. בדיקה שיש מרכאה פותחת */
+                if (*line_ptr != '\"') {
+                    fprintf(stderr, "Error line %d: Missing opening quote for .string directive\n", context->line_number);
+                    context->error_found = TRUE;
+                } else {
+                    line_ptr++; /* מדלגים על המרכאה הפותחת */
+
+                    /* מכניסים את התווים למערך */
                     while (*line_ptr != '\"' && *line_ptr != '\0' && *line_ptr != '\n') {
                         context->data_image[context->dc].value = (unsigned int)*line_ptr & 0xFFF;
                         context->data_image[context->dc].are = 'A';
                         context->dc++;
                         line_ptr++;
                     }
-                    context->data_image[context->dc].value = 0;
-                    context->data_image[context->dc].are = 'A';
-                    context->dc++;
+
+                    /* 2. הגענו לסוף - בודקים אם עצרנו בגלל מרכאה סוגרת או בגלל שנגמרה השורה */
+                    if (*line_ptr != '\"') {
+                        fprintf(stderr, "Error line %d: Missing closing quote for .string directive\n", context->line_number);
+                        context->error_found = TRUE;
+                    } else {
+                        /* סיימנו בהצלחה! סוגרים את המחרוזת עם תו ה-NULL (אפס) */
+                        context->data_image[context->dc].value = 0;
+                        context->data_image[context->dc].are = 'A';
+                        context->dc++;
+
+                        line_ptr++; /* מדלגים על המרכאה הסוגרת */
+
+                        /* 3. בדיקה שאין טקסט מיותר אחרי המחרוזת */
+                        skip_whitespaces(&line_ptr);
+                        if (*line_ptr != '\0' && *line_ptr != '\n') {
+                            fprintf(stderr, "Error line %d: Extraneous text after string in .string directive\n", context->line_number);
+                            context->error_found = TRUE;
+                        }
+                    }
                 }
             }
         }
@@ -99,7 +123,19 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                     fprintf(stderr, "Error line %d: Invalid extern label '%s' (Must start with a letter)\n", context->line_number, label);
                     context->error_found = TRUE;
                 } else {
-                    add_symbol(&context->symbol_head, label, 0, 0, 0, 1);
+                    /* --- הנה התיקון שלנו: בודקים אם הסמל כבר קיים בבית --- */
+                    symbol_ptr existing = get_symbol(context->symbol_head, label);
+
+                    if (existing != NULL) {
+                        /* מצאנו אותו בטבלה! האם הוא הוגדר פה כמקומי? */
+                        if (!existing->is_extern) {
+                            fprintf(stderr, "Error line %d: Symbol '%s' is already defined locally. Cannot declare as .extern\n", context->line_number, label);
+                            context->error_found = TRUE;
+                        }
+                    } else {
+                        /* הוא לא קיים עדיין, אז מותר להגדיר אותו כחיצוני בבטחה */
+                        add_symbol(&context->symbol_head, label, 0, 0, 0, 1);
+                    }
                 }
             }
         }
@@ -115,7 +151,13 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                 memset(src, 0, sizeof(src));
                 memset(dst, 0, sizeof(dst));
 
-                if (symbol_flag) add_symbol(&context->symbol_head, label, context->ic, 1, 0, 0);
+                if (symbol_flag) {
+                    /* מנסים להוסיף, ואם הפונקציה מחזירה שקר - סימן שהתווית כבר קיימת! */
+                    if (!add_symbol(&context->symbol_head, label, context->ic, 1, 0, 0)) {
+                        fprintf(stderr, "Error line %d: Label '%s' is already defined.\n", context->line_number, label);
+                        context->error_found = TRUE;
+                    }
+                }
 
                 if (cmd->expected_ops == 2) {
                     k = 0;

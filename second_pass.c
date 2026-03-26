@@ -75,7 +75,13 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
             } else {
                 sym = get_symbol(context->symbol_head, label);
                 if (sym) {
-                    sym->is_entry = TRUE;
+                    /* בדיקת התנגשות: האם כבר הוגדר כ-extern במעבר הראשון? */
+                    if (sym->is_extern) {
+                        fprintf(stderr, "Error line %d: Symbol '%s' cannot be defined as both .entry and .extern\n", context->line_number, label);
+                        context->error_found = TRUE;
+                    } else {
+                        sym->is_entry = TRUE;
+                    }
                 } else {
                     fprintf(stderr, "Error line %d: Undefined entry symbol '%s'\n", context->line_number, label);
                     context->error_found = TRUE;
