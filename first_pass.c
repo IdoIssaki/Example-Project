@@ -11,6 +11,7 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
     char first_word[MAX_LINE_LENGTH], label[MAX_LABEL_LENGTH];
     char *line_ptr;
     symbol_ptr curr;
+    boolean expect_number;
 
     context->ic = INITIAL_IC;
     context->dc = 0;
@@ -62,17 +63,39 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                 }
             }
             if (strcmp(first_word, ".data") == 0) {
+                expect_number = TRUE;
                 while (*line_ptr != '\0' && *line_ptr != '\n') {
                     skip_whitespaces(&line_ptr);
-                    if (*line_ptr == ',' || *line_ptr == '\0' || *line_ptr == '\n') {
-                        if (*line_ptr == ',') line_ptr++;
+                    if (*line_ptr == '\0' || *line_ptr == '\n') break;
+                    
+                    if (*line_ptr == ',') {
+                        if (expect_number) {
+                            fprintf(stderr, "Error line %d: Unexpected comma in .data\n", context->line_number);
+                            context->error_found = TRUE;
+                            break;
+                        }
+                        line_ptr++;
+                        expect_number = TRUE;
                         continue;
                     }
+                    
+                    if (!expect_number) {
+                        fprintf(stderr, "Error line %d: Expected comma between numbers\n", context->line_number);
+                        context->error_found = TRUE;
+                        break;
+                    }
+                    
                     extract_word(&line_ptr, num_str);
                     if (num_str[0] != '\0') {
+                        if (!is_valid_number(num_str)) {
+                            fprintf(stderr, "Error line %d: Invalid number '%s' in .data\n", context->line_number, num_str);
+                            context->error_found = TRUE;
+                            break;
+                        }
                         context->data_image[context->dc].value = atoi(num_str) & 0xFFF;
                         context->data_image[context->dc].are = 'A';
                         context->dc++;
+                        expect_number = FALSE;
                     }
                 }
             } else { /* טיפול ב- .string */
@@ -186,6 +209,35 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
 
                     src_m = (src[0] == '#') ? 0 : ((strlen(src) == 2 && src[0] == 'r' && src[1] >= '0' && src[1] <= '7') ? 3 : (src[0] == '%' ? 2 : 1));
                     dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
+                    
+                    /* בדיקת שיטות מיעון מותרות */
+                    if (!is_valid_addr_mode(cmd->src_modes, src_m)) {
+                        fprintf(stderr, "Error line %d: Invalid source addressing mode for '%s'\n", context->line_number, first_word);
+                        context->error_found = TRUE;
+                        context->line_number++;
+                        continue;
+                    }
+                    if (!is_valid_addr_mode(cmd->dst_modes, dst_m)) {
+                        fprintf(stderr, "Error line %d: Invalid dest addressing mode for '%s'\n", context->line_number, first_word);
+                        context->error_found = TRUE;
+                        context->line_number++;
+                        continue;
+                    }
+                    
+                    /* בדיקת ערך מיידי תקין */
+                    if (src_m == 0 && !is_valid_number(src + 1)) {
+                        fprintf(stderr, "Error line %d: Invalid immediate value '%s'\n", context->line_number, src);
+                        context->error_found = TRUE;
+                        context->line_number++;
+                        continue;
+                    }
+                    if (dst_m == 0 && !is_valid_number(dst + 1)) {
+                        fprintf(stderr, "Error line %d: Invalid immediate value '%s'\n", context->line_number, dst);
+                        context->error_found = TRUE;
+                        context->line_number++;
+                        continue;
+                    }
+                    
                     L = 3;
                 }
                 else if (cmd->expected_ops == 1) {
@@ -204,6 +256,23 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                     }
 
                     dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
+                    
+                    /* בדיקת שיטת מיעון מותרת */
+                    if (!is_valid_addr_mode(cmd->dst_modes, dst_m)) {
+                        fprintf(stderr, "Error line %d: Invalid dest addressing mode for '%s'\n", context->line_number, first_word);
+                        context->error_found = TRUE;
+                        context->line_number++;
+                        continue;
+                    }
+                    
+                    /* בדיקת ערך מיידי תקין */
+                    if (dst_m == 0 && !is_valid_number(dst + 1)) {
+                        fprintf(stderr, "Error line %d: Invalid immediate value '%s'\n", context->line_number, dst);
+                        context->error_found = TRUE;
+                        context->line_number++;
+                        continue;
+                    }
+                    
                     L = 2;
                 }
 

@@ -10,7 +10,7 @@
 #include "macro_table.h"
 #include "utils.h" 
 
-/* אלגוריתם: הקצאה בטוחה, העתקת שם, והכנסה לראש הרשימה ב-O(1). */
+/* מוסיף מאקרו חדש לרשימה */
 macro_ptr add_macro(macro_ptr *head, const char *name) {
     macro_ptr new_macro;
     if (head == NULL || name == NULL) return NULL;
@@ -26,7 +26,7 @@ macro_ptr add_macro(macro_ptr *head, const char *name) {
     return new_macro;
 }
 
-/* אלגוריתם: הקצאת זיכרון לשורה והכנסה לסוף הרשימה כדי לשמור על סדר הפקודות המקורי. */
+/* מוסיף שורה לסוף המאקרו */
 void add_macro_line(macro_ptr macro, const char *line) {
     macro_line_node *new_line;
     if (macro == NULL || line == NULL) return;
@@ -45,7 +45,7 @@ void add_macro_line(macro_ptr macro, const char *line) {
     }
 }
 
-/* אלגוריתם: סריקה ליניארית של רשימת המאקרואים. */
+/* מחפש מאקרו לפי שם */
 macro_ptr get_macro(macro_ptr head, const char *name) {
     macro_ptr current = head;
     if (name == NULL) return NULL;
@@ -57,7 +57,7 @@ macro_ptr get_macro(macro_ptr head, const char *name) {
     return NULL;
 }
 
-/* אלגוריתם: שחרור רשימות פנימיות (שורות) ואז שחרור המאקרו עצמו למניעת דליפות זיכרון. */
+/* משחרר את כל הזיכרון של הטבלה */
 void free_macro_table(macro_ptr head) {
     macro_ptr current_macro = head;
     macro_ptr next_macro;

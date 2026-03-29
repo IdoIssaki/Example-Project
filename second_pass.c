@@ -25,6 +25,9 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
     char line[MAX_LINE_LENGTH + 2];
     char first_word[MAX_LINE_LENGTH], label[MAX_LABEL_LENGTH];
     char *line_ptr;
+    int word_addr;
+    char *sym_name;
+    symbol_ptr sym;
 
     context->ic = INITIAL_IC;
     context->line_number = 1;
@@ -65,7 +68,6 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
             continue;
         }
         else if (strcmp(first_word, ".entry") == 0) {
-            symbol_ptr sym;
             extract_word(&line_ptr, label);
 
             /* בדיקה שאנטרי מתחיל באות */
@@ -149,17 +151,23 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                 }
 
                 if (src_m == 1 || src_m == 2) {
-                    char *sym_name = (src_m == 2) ? src + 1 : src;
-                    symbol_ptr sym = get_symbol(context->symbol_head, sym_name);
+                    sym_name = (src_m == 2) ? src + 1 : src;
+                    sym = get_symbol(context->symbol_head, sym_name);
 
                     if (sym) {
                         if (sym->is_extern) {
-                            context->code_image[context->ic - INITIAL_IC + 1].value = 0;
-                            context->code_image[context->ic - INITIAL_IC + 1].are = 'E';
-                            add_ext(ext_list_head, sym->name, context->ic + 1);
+                            if (src_m == 2) {
+                                fprintf(stderr, "Error line %d: Cannot use relative addressing with external symbol '%s'\n", context->line_number, sym_name);
+                                context->error_found = TRUE;
+                            } else {
+                                context->code_image[context->ic - INITIAL_IC + 1].value = 0;
+                                context->code_image[context->ic - INITIAL_IC + 1].are = 'E';
+                                add_ext(ext_list_head, sym->name, context->ic + 1);
+                            }
                         } else {
                             if (src_m == 2) {
-                                context->code_image[context->ic - INITIAL_IC + 1].value = (sym->value - context->ic) & 0xFFF;
+                                word_addr = context->ic + 1;
+                                context->code_image[context->ic - INITIAL_IC + 1].value = (sym->value - word_addr) & 0xFFF;
                                 context->code_image[context->ic - INITIAL_IC + 1].are = 'A';
                             } else {
                                 context->code_image[context->ic - INITIAL_IC + 1].value = sym->value & 0xFFF;
@@ -173,18 +181,24 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                 }
 
                 if (dst_m == 1 || dst_m == 2) {
-                    char *sym_name = (dst_m == 2) ? dst + 1 : dst;
-                    symbol_ptr sym = get_symbol(context->symbol_head, sym_name);
+                    sym_name = (dst_m == 2) ? dst + 1 : dst;
+                    sym = get_symbol(context->symbol_head, sym_name);
                     offset = (src_m != -1) ? 2 : 1;
 
                     if (sym) {
                         if (sym->is_extern) {
-                            context->code_image[context->ic - INITIAL_IC + offset].value = 0;
-                            context->code_image[context->ic - INITIAL_IC + offset].are = 'E';
-                            add_ext(ext_list_head, sym->name, context->ic + offset);
+                            if (dst_m == 2) {
+                                fprintf(stderr, "Error line %d: Cannot use relative addressing with external symbol '%s'\n", context->line_number, sym_name);
+                                context->error_found = TRUE;
+                            } else {
+                                context->code_image[context->ic - INITIAL_IC + offset].value = 0;
+                                context->code_image[context->ic - INITIAL_IC + offset].are = 'E';
+                                add_ext(ext_list_head, sym->name, context->ic + offset);
+                            }
                         } else {
                             if (dst_m == 2) {
-                                context->code_image[context->ic - INITIAL_IC + offset].value = (sym->value - context->ic) & 0xFFF;
+                                word_addr = context->ic + offset;
+                                context->code_image[context->ic - INITIAL_IC + offset].value = (sym->value - word_addr) & 0xFFF;
                                 context->code_image[context->ic - INITIAL_IC + offset].are = 'A';
                             } else {
                                 context->code_image[context->ic - INITIAL_IC + offset].value = sym->value & 0xFFF;

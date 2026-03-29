@@ -4,7 +4,7 @@
 #include "output_generator.h"
 #include "utils.h"
 
-/* הנה פונקציית העזר! כאן השורה המיוחדת אמורה להיות. */
+/* מדפיס מילת מכונה לקובץ */
 static void print_machine_word(FILE *file, int address, machine_word word) {
     fprintf(file, "%04d %03X %c\n", address, word.value & 0xFFF, word.are);
 }

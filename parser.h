@@ -12,6 +12,7 @@ void extract_word(char **source, char *dest);
 boolean is_label_definition(const char *word);
 boolean is_valid_number(const char *str);
 boolean is_valid_string_literal(const char *str);
+boolean is_valid_addr_mode(const int modes[], int mode);
 
 /* מנתחת הנחיית .string (קוראת מחרוזת בתוך מרכאות, מכניסה למערך הנתונים ומוסיפה 0 בסוף) */
 boolean parse_string_directive(char **line_ptr, AssemblerContext *ctx);

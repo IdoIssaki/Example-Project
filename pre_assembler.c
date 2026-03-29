@@ -17,6 +17,12 @@ boolean pre_assemble(FILE *source_file, const char *base_file_name, AssemblerCon
     char *line_ptr;
     char *am_file_name;
     FILE *am_file;
+    char *temp_ptr;
+    char second_word[MAX_LINE_LENGTH];
+    char macro_name[MAX_LABEL_LENGTH + 2];
+    char temp_label[MAX_LABEL_LENGTH];
+    macro_line_node *curr_line;
+    boolean is_label_conflict;
 
     boolean is_inside_macro = FALSE;
     macro_ptr macro_head = NULL;
@@ -81,8 +87,8 @@ boolean pre_assemble(FILE *source_file, const char *base_file_name, AssemblerCon
         }
             /* --- טיפול מחוץ למאקרו (קוד רגיל) --- */
         else {
-            char *temp_ptr = line_ptr;
-            char second_word[MAX_LINE_LENGTH] = {0};
+            temp_ptr = line_ptr;
+            memset(second_word, 0, sizeof(second_word));
             extract_word(&temp_ptr, second_word);
 
             /* זיהוי זבל לפני הצהרת מאקרו */
@@ -96,8 +102,8 @@ boolean pre_assemble(FILE *source_file, const char *base_file_name, AssemblerCon
             }
 
             if (strcmp(first_word, "mcro") == 0) {
-                char macro_name[MAX_LABEL_LENGTH + 2] = {0};
-                boolean is_label_conflict = FALSE;
+                memset(macro_name, 0, sizeof(macro_name));
+                is_label_conflict = FALSE;
                 extract_word(&line_ptr, macro_name);
 
                 /* בדיקה בפנקס התוויות שלנו */
@@ -144,7 +150,6 @@ boolean pre_assemble(FILE *source_file, const char *base_file_name, AssemblerCon
             else {
                 /* אם זו תווית, נשמור אותה בפנקס שלנו */
                 if (strlen(first_word) > 0 && first_word[strlen(first_word) - 1] == ':') {
-                    char temp_label[MAX_LABEL_LENGTH];
                     strncpy(temp_label, first_word, strlen(first_word) - 1);
                     temp_label[strlen(first_word) - 1] = '\0';
 
@@ -160,7 +165,7 @@ boolean pre_assemble(FILE *source_file, const char *base_file_name, AssemblerCon
 
                 /* פריסת המאקרו אם נקרא (ורק אם הוא חוקי ונשמר) */
                 if ((found_macro = get_macro(macro_head, first_word)) != NULL) {
-                    macro_line_node *curr_line = found_macro->lines_head;
+                    curr_line = found_macro->lines_head;
                     while (curr_line != NULL) {
                         fputs(curr_line->line, am_file);
                         curr_line = curr_line->next;

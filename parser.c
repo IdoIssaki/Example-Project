@@ -80,3 +80,12 @@ boolean is_valid_string_literal(const char *str) {
     return TRUE;
 }
 
+/* בודק אם שיטת מיעון חוקית לפקודה */
+boolean is_valid_addr_mode(const int modes[], int mode) {
+    int i;
+    for (i = 0; i < MAX_ADDRESSING_MODES && modes[i] != -1; i++) {
+        if (modes[i] == mode) return TRUE;
+    }
+    return FALSE;
+}
+
