@@ -290,13 +290,13 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                         (cmd->funct << 4) |
                         ((src_m != -1 ? src_m : 0) << 2) |
                         (dst_m != -1 ? dst_m : 0);
-                context->code_image[context->ic - INITIAL_IC].are = 'A';
+                context->code_image[context->ic - INITIAL_IC].are = ARE_ABSOLUTE;
 
                 if (src_m != -1) {
                     if (src_m == 0 || src_m == 3) {
                         val = (src_m == 0) ? atoi(src + 1) : (1 << (src[1] - '0'));
                         context->code_image[context->ic - INITIAL_IC + 1].value = val & 0xFFF;
-                        context->code_image[context->ic - INITIAL_IC + 1].are = 'A';
+                        context->code_image[context->ic - INITIAL_IC + 1].are = ARE_ABSOLUTE;
                     } else {
                         context->code_image[context->ic - INITIAL_IC + 1].value = 0;
                         context->code_image[context->ic - INITIAL_IC + 1].are = '\0';
@@ -307,7 +307,7 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                     if (dst_m == 0 || dst_m == 3) {
                         val = (dst_m == 0) ? atoi(dst + 1) : (1 << (dst[1] - '0'));
                         context->code_image[context->ic - INITIAL_IC + offset].value = val & 0xFFF;
-                        context->code_image[context->ic - INITIAL_IC + offset].are = 'A';
+                        context->code_image[context->ic - INITIAL_IC + offset].are = ARE_ABSOLUTE;
                     } else {
                         context->code_image[context->ic - INITIAL_IC + offset].value = 0;
                         context->code_image[context->ic - INITIAL_IC + offset].are = '\0';

@@ -161,17 +161,17 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                                 context->error_found = TRUE;
                             } else {
                                 context->code_image[context->ic - INITIAL_IC + 1].value = 0;
-                                context->code_image[context->ic - INITIAL_IC + 1].are = 'E';
+                                context->code_image[context->ic - INITIAL_IC + 1].are = ARE_EXTERNAL;
                                 add_ext(ext_list_head, sym->name, context->ic + 1);
                             }
                         } else {
                             if (src_m == 2) {
                                 word_addr = context->ic + 1;
                                 context->code_image[context->ic - INITIAL_IC + 1].value = (sym->value - word_addr) & 0xFFF;
-                                context->code_image[context->ic - INITIAL_IC + 1].are = 'A';
+                                context->code_image[context->ic - INITIAL_IC + 1].are = ARE_ABSOLUTE;
                             } else {
                                 context->code_image[context->ic - INITIAL_IC + 1].value = sym->value & 0xFFF;
-                                context->code_image[context->ic - INITIAL_IC + 1].are = 'R';
+                                context->code_image[context->ic - INITIAL_IC + 1].are = ARE_RELOCATABLE;
                             }
                         }
                     } else {
@@ -192,17 +192,17 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                                 context->error_found = TRUE;
                             } else {
                                 context->code_image[context->ic - INITIAL_IC + offset].value = 0;
-                                context->code_image[context->ic - INITIAL_IC + offset].are = 'E';
+                                context->code_image[context->ic - INITIAL_IC + offset].are = ARE_EXTERNAL;
                                 add_ext(ext_list_head, sym->name, context->ic + offset);
                             }
                         } else {
                             if (dst_m == 2) {
                                 word_addr = context->ic + offset;
                                 context->code_image[context->ic - INITIAL_IC + offset].value = (sym->value - word_addr) & 0xFFF;
-                                context->code_image[context->ic - INITIAL_IC + offset].are = 'A';
+                                context->code_image[context->ic - INITIAL_IC + offset].are = ARE_ABSOLUTE;
                             } else {
                                 context->code_image[context->ic - INITIAL_IC + offset].value = sym->value & 0xFFF;
-                                context->code_image[context->ic - INITIAL_IC + offset].are = 'R';
+                                context->code_image[context->ic - INITIAL_IC + offset].are = ARE_RELOCATABLE;
                             }
                         }
                     } else {
