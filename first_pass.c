@@ -211,13 +211,13 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                     dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
                     
                     /* בדיקת שיטות מיעון מותרות */
-                    if (!is_valid_addr_mode(cmd->src_modes, src_m)) {
+                    if (!is_valid_addr_mode(cmd->valid_src_modes, src_m)) {
                         fprintf(stderr, "Error line %d: Invalid source addressing mode for '%s'\n", context->line_number, first_word);
                         context->error_found = TRUE;
                         context->line_number++;
                         continue;
                     }
-                    if (!is_valid_addr_mode(cmd->dst_modes, dst_m)) {
+                    if (!is_valid_addr_mode(cmd->valid_dest_modes, dst_m)) {
                         fprintf(stderr, "Error line %d: Invalid dest addressing mode for '%s'\n", context->line_number, first_word);
                         context->error_found = TRUE;
                         context->line_number++;
@@ -258,7 +258,7 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                     dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
                     
                     /* בדיקת שיטת מיעון מותרת */
-                    if (!is_valid_addr_mode(cmd->dst_modes, dst_m)) {
+                    if (!is_valid_addr_mode(cmd->valid_dest_modes, dst_m)) {
                         fprintf(stderr, "Error line %d: Invalid dest addressing mode for '%s'\n", context->line_number, first_word);
                         context->error_found = TRUE;
                         context->line_number++;
