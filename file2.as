@@ -9,7 +9,7 @@ mcro GEN_MC
 mcroend
 LOOP: prn #48
 GEN_MC
- sub r1, r4
+ sub #abc, r4
  bne END
  mcro GEN_MC2
  lea STR, r3
@@ -17,7 +17,7 @@ GEN_MC
  mov r4, K
 mcroend
  GEN_MC
- cmp val1, #-6
+ cmp val1, #abc
  bne %END
  dec K
  jmp %LOOP
@@ -30,4 +30,4 @@ LIST: .data 6, -9
  .data -100
 .entry K
 K: .data 31
-.extern val
+.extern val1
