@@ -81,6 +81,8 @@ boolean is_valid_string_literal(const char *str) {
 }
 
 /* בודק אם שיטת מיעון חוקית לפקודה */
+// צריך להוסיף אותה בקוד שלנו ובנוסף- להוסיף גם עוד מספר פונקציות כדי להקל על pre assembler (בשיחה עם הגימניי- לבדוק)
+//נצטרך גם להכניס פונקציה שתעבוד עם short כפי שג'ודי ביקשה כי כרגע הם לא על short
 boolean is_valid_addr_mode(const int modes[], int mode) {
     if (mode < 0 || mode > 3) return FALSE;
     return modes[mode] == 1;
