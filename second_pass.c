@@ -119,8 +119,12 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                         continue;
                     }
 
+                    //נקרא במקום שתי השורות הללו שהן לא ברורות לפונקציה get_addressing_mode
+                    //src_m = get_addressing_mode(src);
+                    //dst_m = get_addressing_mode(dst);
                     src_m = (src[0] == '#') ? 0 : ((strlen(src) == 2 && src[0] == 'r' && src[1] >= '0' && src[1] <= '7') ? 3 : (src[0] == '%' ? 2 : 1));
                     dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
+
                     L = 3;
                 }
                 else if (cmd->expected_ops == 1) {
@@ -138,7 +142,10 @@ boolean second_pass(FILE *am_file, AssemblerContext *context, ext_ptr *ext_list_
                         continue;
                     }
 
+                    // מוחקים את השורה הבאה
+                    // ובמקומה מוסיפים: dst_m = get_addressing_mode(dst);
                     dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
+
                     L = 2;
                 }
 

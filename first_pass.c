@@ -55,6 +55,8 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
             extract_word(&line_ptr, first_word);
         }
 
+        //כל החלק מפה עד הנקודה בהערה זה חלק שאמור להחליף הפונקציה בparser
+        //parse_data_directive
         if (strcmp(first_word, ".data") == 0 || strcmp(first_word, ".string") == 0) {
             if (symbol_flag) {
                 if (!add_symbol(&context->symbol_head, label, context->dc, 0, 1, 0)) {
@@ -63,6 +65,8 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                 }
             }
             if (strcmp(first_word, ".data") == 0) {
+                //  במקום כל הבלוז הזה נקרא פה לפונקציה- parse_data_directive(&line_ptr, context)
+
                 expect_number = TRUE;
                 while (*line_ptr != '\0' && *line_ptr != '\n') {
                     skip_whitespaces(&line_ptr);
@@ -97,8 +101,10 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                         context->dc++;
                         expect_number = FALSE;
                     }
+                    //עד לפה .
                 }
             } else { /* טיפול ב- .string */
+                //גם פה במקום הבלוק הזה נקרא במקום לפונקציה parse_string_directive(&line_ptr, context)
                 skip_whitespaces(&line_ptr);
 
                 /* 1. בדיקה שיש מרכאה פותחת */
@@ -134,6 +140,7 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                             fprintf(stderr, "Error line %d: Extraneous text after string in .string directive\n", context->line_number);
                             context->error_found = TRUE;
                         }
+                        //עד לפה .
                     }
                 }
             }
@@ -181,7 +188,9 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                         context->error_found = TRUE;
                     }
                 }
-
+                // במקום כל הבלוק הזה נקרא לפונקציה-
+                // ובמקומו מוסיפים קריאה לפונקציה:
+                // if (cmd->expected_ops > 0) parse_command_operands(&line_ptr, src, dst, cmd->expected_ops, context->line_number);
                 if (cmd->expected_ops == 2) {
                     k = 0;
                     skip_whitespaces(&line_ptr);
@@ -206,7 +215,11 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                         context->line_number++;
                         continue;
                     }
+                    //עד לפה מוחקים ושמים במקום את הקריאה לפונקציה והתנאי
 
+                    //נקרא במקום שתי השורות הללו שהן לא ברורות לפונקציה get_addressing_mode
+                    //src_m = get_addressing_mode(src);
+                    //dst_m = get_addressing_mode(dst);
                     src_m = (src[0] == '#') ? 0 : ((strlen(src) == 2 && src[0] == 'r' && src[1] >= '0' && src[1] <= '7') ? 3 : (src[0] == '%' ? 2 : 1));
                     dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
                     
@@ -255,6 +268,8 @@ boolean first_pass(FILE *am_file, AssemblerContext *context) {
                         continue;
                     }
 
+                    // מוחקים את השורה הבאה (228)
+                    // ובמקומה מוסיפים: dst_m = get_addressing_mode(dst);
                     dst_m = (dst[0] == '#') ? 0 : ((strlen(dst) == 2 && dst[0] == 'r' && dst[1] >= '0' && dst[1] <= '7') ? 3 : (dst[0] == '%' ? 2 : 1));
                     
                     /* בדיקת שיטת מיעון מותרת */
