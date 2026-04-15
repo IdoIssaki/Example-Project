@@ -11,11 +11,14 @@ int main(int argc, char *argv[]) {
     int i;
     AssemblerContext ctx;
 
+    // וויאוי שהמשתמש הזין לפחות שם של קובץ אחד לעיבוד.
     if (argc < 2) {
         fprintf(stderr, "Usage: %s file1 file2 ...\n", argv[0]);
         return EXIT_FAILURE;
     }
 
+    // המשתנים צריכים להיות מוכרזים בהתחלה.
+    // יוצרים את קובץ as וקובץ am ופותחים את as לקריאה.
     for (i = 1; i < argc; i++) {
         char *as_name = create_file_name(argv[i], ".as");
         char *am_name = create_file_name(argv[i], ".am");
@@ -42,13 +45,14 @@ int main(int argc, char *argv[]) {
 
         /* שלב 1: פריסת מאקרויים (Pre-Assembler) */
         if (pre_assemble(as_file, argv[i], &ctx)) {
-            am_file = fopen(am_name, "r");
+            am_file = fopen(am_name, "r"); // מחזיר אוטומטית את הסמן למילה הראשונה בקובץ. עושה rewind.
 
             /* שלב 2: מעבר ראשון */
             if (am_file && first_pass(am_file, &ctx)) {
                 rewind(am_file); /* חזרה לתחילת קובץ ה-am עבור המעבר השני */
 
                 /* שלב 3: מעבר שני */
+                // אין פה צורך לרשום את התנאי השני לפני הוגם כי בדקנו כבר במעבר הראשון שאנחנו בקובץ הזה.
                 if (second_pass(am_file, &ctx, &ext_list)) {
                     /* שלב 4: יצירת קבצי הפלט */
                     generate_output_files(argv[i], &ctx, ext_list);
